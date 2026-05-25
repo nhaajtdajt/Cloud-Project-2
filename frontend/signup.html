@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Đăng ký tài khoản mới cho ứng dụng Quản lý Công việc - Task Manager Serverless">
+    <title>Đăng ký — Task Manager</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <!-- ============================================================
+         TRANG ĐĂNG KÝ
+         ============================================================ -->
+    <div class="auth-wrapper">
+        <div class="auth-card">
+            <div class="auth-header">
+                <span class="auth-icon">📝</span>
+                <h1>Tạo tài khoản</h1>
+                <p>Đăng ký để bắt đầu quản lý công việc</p>
+            </div>
+
+            <!-- Thông báo lỗi -->
+            <div class="auth-error" id="auth-error"></div>
+
+            <!-- ============================================================
+                 FORM ĐĂNG KÝ
+                 ============================================================ -->
+            <div id="signup-section">
+                <form class="auth-form" id="signup-form">
+                    <div class="form-group">
+                        <label class="form-label" for="signup-email">Email</label>
+                        <input type="email" class="form-input" id="signup-email"
+                               placeholder="example@email.com" required autocomplete="email">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="signup-password">Mật khẩu</label>
+                        <input type="password" class="form-input" id="signup-password"
+                               placeholder="Tối thiểu 8 ký tự, có chữ hoa, số, ký tự đặc biệt" required
+                               autocomplete="new-password" minlength="8">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="signup-confirm">Xác nhận mật khẩu</label>
+                        <input type="password" class="form-input" id="signup-confirm"
+                               placeholder="Nhập lại mật khẩu" required autocomplete="new-password">
+                    </div>
+
+                    <button type="submit" class="btn btn-primary" id="btn-signup">
+                        📝 Đăng ký
+                    </button>
+                </form>
+
+                <div class="auth-footer">
+                    Đã có tài khoản?
+                    <a href="login.html">Đăng nhập</a>
+                </div>
+            </div>
+
+            <!-- ============================================================
+                 FORM XÁC NHẬN MÃ OTP
+                 ============================================================ -->
+            <div id="confirm-section" class="confirm-section">
+                <div style="text-align: center; margin-bottom: 20px;">
+                    <span style="font-size: 2.5rem;">📧</span>
+                    <p style="color: var(--text-secondary); margin-top: 12px;">
+                        Chúng tôi đã gửi mã xác nhận đến email
+                        <strong id="confirm-email-display" style="color: var(--color-primary-light);"></strong>.
+                        Vui lòng kiểm tra hộp thư.
+                    </p>
+                </div>
+
+                <form class="auth-form" id="confirm-form">
+                    <div class="form-group">
+                        <label class="form-label" for="confirm-code">Mã xác nhận</label>
+                        <input type="text" class="form-input" id="confirm-code"
+                               placeholder="Nhập mã 6 chữ số" required
+                               pattern="[0-9]{6}" maxlength="6"
+                               style="text-align: center; font-size: 1.5rem; letter-spacing: 0.5em;">
+                    </div>
+
+                    <button type="submit" class="btn btn-primary" id="btn-confirm">
+                        ✅ Xác nhận
+                    </button>
+                </form>
+
+                <div class="auth-footer">
+                    <a href="#" id="btn-back-signup">← Quay lại đăng ký</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loading-overlay">
+        <div class="loading-spinner"></div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js@6.3.12/dist/amazon-cognito-identity.min.js"></script>
+    <script src="js/config.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/utils.js"></script>
+    <script>
+        // Nếu đã đăng nhập → redirect
+        redirectIfAuthenticated();
+
+        let pendingEmail = '';
+
+        // ============================================================
+        // XỬ LÝ ĐĂNG KÝ
+        // ============================================================
+        document.getElementById('signup-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const email = document.getElementById('signup-email').value.trim();
+            const password = document.getElementById('signup-password').value;
+            const confirm = document.getElementById('signup-confirm').value;
+            const errorEl = document.getElementById('auth-error');
+
+            errorEl.classList.remove('show');
+
+            // Validate mật khẩu khớp
+            if (password !== confirm) {
+                errorEl.textContent = 'Mật khẩu xác nhận không khớp!';
+                errorEl.classList.add('show');
+                return;
+            }
+
+            // Validate độ mạnh mật khẩu
+            if (password.length < 8) {
+                errorEl.textContent = 'Mật khẩu phải có ít nhất 8 ký tự!';
+                errorEl.classList.add('show');
+                return;
+            }
+
+            showLoading();
+            try {
+                await signUp(email, password);
+                pendingEmail = email;
+
+                // Chuyển sang form xác nhận
+                document.getElementById('signup-section').style.display = 'none';
+                document.getElementById('confirm-section').classList.add('active');
+                document.getElementById('confirm-email-display').textContent = email;
+
+                showToast('Đã gửi mã xác nhận! Kiểm tra email của bạn.', 'info');
+            } catch (error) {
+                console.error('Signup error:', error);
+                let message = 'Đăng ký thất bại. Vui lòng thử lại.';
+                if (error.code === 'UsernameExistsException') {
+                    message = 'Email này đã được đăng ký. Vui lòng đăng nhập.';
+                } else if (error.code === 'InvalidPasswordException') {
+                    message = 'Mật khẩu phải có ít nhất 8 ký tự, bao gồm chữ hoa, chữ thường, số và ký tự đặc biệt.';
+                } else if (error.message) {
+                    message = error.message;
+                }
+                errorEl.textContent = message;
+                errorEl.classList.add('show');
+            } finally {
+                hideLoading();
+            }
+        });
+
+        // ============================================================
+        // XỬ LÝ XÁC NHẬN MÃ
+        // ============================================================
+        document.getElementById('confirm-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const code = document.getElementById('confirm-code').value.trim();
+            const errorEl = document.getElementById('auth-error');
+
+            errorEl.classList.remove('show');
+
+            showLoading();
+            try {
+                await confirmSignUp(pendingEmail, code);
+                showToast('Xác nhận thành công! Đang chuyển đến trang đăng nhập...');
+                setTimeout(() => {
+                    window.location.href = 'login.html';
+                }, 1500);
+            } catch (error) {
+                console.error('Confirm error:', error);
+                let message = 'Xác nhận thất bại. Vui lòng thử lại.';
+                if (error.code === 'CodeMismatchException') {
+                    message = 'Mã xác nhận không đúng. Vui lòng kiểm tra lại.';
+                } else if (error.code === 'ExpiredCodeException') {
+                    message = 'Mã xác nhận đã hết hạn. Vui lòng đăng ký lại.';
+                } else if (error.message) {
+                    message = error.message;
+                }
+                errorEl.textContent = message;
+                errorEl.classList.add('show');
+            } finally {
+                hideLoading();
+            }
+        });
+
+        // Nút quay lại
+        document.getElementById('btn-back-signup').addEventListener('click', (e) => {
+            e.preventDefault();
+            document.getElementById('confirm-section').classList.remove('active');
+            document.getElementById('signup-section').style.display = 'block';
+            document.getElementById('auth-error').classList.remove('show');
+        });
+    </script>
+</body>
+</html>
