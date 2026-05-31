@@ -10,7 +10,7 @@ const CONFIG = {
     // Amazon Cognito Configuration
     COGNITO: {
         REGION: 'ap-southeast-1',
-        USER_POOL_ID: 'ap-southeast-1_XXXXXXXXX',   // Thay bằng User Pool ID thực
-        APP_CLIENT_ID: 'xxxxxxxxxxxxxxxxxxxxxxxxxx'  // Thay bằng App Client ID thực
+        USER_POOL_ID: 'ap-southeast-1_XPD5UXGns',   // User Pool ID from Cognito
+        APP_CLIENT_ID: '29l4fmgm3t8paq1mat3l3tsvoj'  // App Client ID from Cognito
     }
 };
