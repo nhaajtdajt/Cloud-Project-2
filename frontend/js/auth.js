@@ -129,6 +129,61 @@ function isAuthenticated() {
     }
 }
 
+// Tự động kiểm tra session và làm mới (Refresh Token) qua Cognito SDK
+function checkAuthAndRefresh() {
+    return new Promise((resolve) => {
+        const cognitoUser = userPool.getCurrentUser();
+        if (!cognitoUser) {
+            resolve(false);
+            return;
+        }
+
+        // getSession sẽ tự động dùng Refresh Token nếu ID Token hết hạn
+        cognitoUser.getSession((err, session) => {
+            if (err || !session.isValid()) {
+                console.warn('Session Cognito không hợp lệ hoặc đã hết hạn:', err);
+                resolve(false);
+                return;
+            }
+
+            // Đồng bộ lại token mới nhất vào localStorage
+            const idToken = session.getIdToken().getJwtToken();
+            const payload = session.getIdToken().decodePayload();
+
+            localStorage.setItem('idToken', idToken);
+            localStorage.setItem('userEmail', payload.email || payload['cognito:username']);
+            localStorage.setItem('userId', payload.sub);
+
+            resolve(true);
+        });
+    });
+}
+
+// Lấy Token hợp lệ (sẽ tự refresh nếu gần hết hạn)
+function getValidToken() {
+    return new Promise((resolve, reject) => {
+        const cognitoUser = userPool.getCurrentUser();
+        if (!cognitoUser) {
+            reject(new Error("Không tìm thấy user session."));
+            return;
+        }
+
+        cognitoUser.getSession((err, session) => {
+            if (err) {
+                reject(err);
+                return;
+            }
+            if (session.isValid()) {
+                const idToken = session.getIdToken().getJwtToken();
+                localStorage.setItem('idToken', idToken);
+                resolve(idToken);
+            } else {
+                reject(new Error("Session không hợp lệ."));
+            }
+        });
+    });
+}
+
 // ============================================================
 // LẤY THÔNG TIN USER HIỆN TẠI
 // ============================================================
