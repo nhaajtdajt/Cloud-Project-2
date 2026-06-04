@@ -128,19 +128,27 @@ Người C là người **xây dựng nền móng cho toàn bộ hệ thống**.
 
 ---
 
-#### Bước C7 — Tạo 2 IAM Roles cho Lambda
+#### Bước C7 — Tạo 5 IAM Roles cho Lambda
 
 > ⚠️ Chờ Người B gửi **Table ARN của DynamoDB** trước khi tạo Role.
 
-**Role 1: LambdaTaskRole** (dành cho 4 Lambda CRUD)
+> 🚨 **ĐỀ BÀI YÊU CẦU RÕ RÀNG:** *"Mỗi Lambda function phải có IAM Role riêng. Không được dùng chung một role cho nhiều Lambda function."*
+> → Phải tạo **4 roles riêng biệt** (mỗi Lambda 1 role) + 1 LambdaBaseRole = tổng **5 roles**.
 
+Mỗi role chỉ có đúng quyền DynamoDB cần thiết cho chức năng của nó — đây là **Nguyên tắc Least Privilege** (điểm IM-2).
+
+**Cách tạo mỗi Role (lặp lại 5 lần):**
 1. IAM → **Roles** → **Create role**
-2. Trusted entity: **AWS service** → **Lambda**
-3. Permissions: **Attach policies** → tìm và attach:
-   - `AmazonVPCCrossAccountNetworkInterfaceOperations` HOẶC tự tạo inline policy sau
-4. Role name: `TaskManager-LambdaTaskRole`
-5. Sau khi tạo xong → vào Role → **Add permissions** → **Create inline policy**:
-6. Chọn tab **JSON**, paste vào:
+2. Trusted entity: **AWS service** → **Lambda** → Next
+3. Permissions: **Bỏ qua, không attach gì cả** → Next
+4. Đặt **Role name** theo bảng bên dưới → **Create role**
+5. Vào Role vừa tạo → tab **Permissions** → **Add permissions** → **Create inline policy**
+6. Chọn tab **JSON** → Paste JSON tương ứng → Policy name: `TaskManager-[tên]-Policy` → **Create policy**
+
+---
+
+**Role 1: `TaskManager-GetTasks-Role`** — Dành cho Lambda GetTasksFunction
+
 ```json
 {
     "Version": "2012-10-17",
@@ -148,12 +156,8 @@ Người C là người **xây dựng nền móng cho toàn bộ hệ thống**.
         {
             "Effect": "Allow",
             "Action": [
-                "dynamodb:GetItem",
-                "dynamodb:PutItem",
-                "dynamodb:UpdateItem",
-                "dynamodb:DeleteItem",
                 "dynamodb:Query",
-                "dynamodb:Scan"
+                "dynamodb:GetItem"
             ],
             "Resource": [
                 "ĐIỀN_TABLE_ARN_DO_NGƯỜI_B_GỬI",
@@ -181,12 +185,126 @@ Người C là người **xây dựng nền móng cho toàn bộ hệ thống**.
     ]
 }
 ```
-7. Policy name: `TaskManager-LambdaTaskPolicy`
+> 💡 Chỉ có `Query` + `GetItem` — không có quyền ghi, sửa, xóa.
 
-**Role 2: LambdaBaseRole** (role phụ - chứng minh có 2 role riêng biệt)
+---
 
-1. Tạo Role tương tự, tên: `TaskManager-LambdaBaseRole`
-2. Inline Policy chỉ có phần **logs + ec2**, KHÔNG có DynamoDB:
+**Role 2: `TaskManager-CreateTask-Role`** — Dành cho Lambda CreateTaskFunction
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "dynamodb:PutItem"
+            ],
+            "Resource": "ĐIỀN_TABLE_ARN_DO_NGƯỜI_B_GỬI"
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "logs:CreateLogGroup",
+                "logs:CreateLogStream",
+                "logs:PutLogEvents"
+            ],
+            "Resource": "arn:aws:logs:ap-southeast-1:*:*"
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "ec2:CreateNetworkInterface",
+                "ec2:DescribeNetworkInterfaces",
+                "ec2:DeleteNetworkInterface"
+            ],
+            "Resource": "*"
+        }
+    ]
+}
+```
+> 💡 Chỉ có `PutItem` — không có quyền đọc, sửa, xóa.
+
+---
+
+**Role 3: `TaskManager-UpdateTask-Role`** — Dành cho Lambda UpdateTaskFunction
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "dynamodb:UpdateItem"
+            ],
+            "Resource": "ĐIỀN_TABLE_ARN_DO_NGƯỜI_B_GỬI"
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "logs:CreateLogGroup",
+                "logs:CreateLogStream",
+                "logs:PutLogEvents"
+            ],
+            "Resource": "arn:aws:logs:ap-southeast-1:*:*"
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "ec2:CreateNetworkInterface",
+                "ec2:DescribeNetworkInterfaces",
+                "ec2:DeleteNetworkInterface"
+            ],
+            "Resource": "*"
+        }
+    ]
+}
+```
+> 💡 Chỉ có `UpdateItem` — không có quyền đọc, tạo, xóa.
+
+---
+
+**Role 4: `TaskManager-DeleteTask-Role`** — Dành cho Lambda DeleteTaskFunction
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "dynamodb:DeleteItem"
+            ],
+            "Resource": "ĐIỀN_TABLE_ARN_DO_NGƯỜI_B_GỬI"
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "logs:CreateLogGroup",
+                "logs:CreateLogStream",
+                "logs:PutLogEvents"
+            ],
+            "Resource": "arn:aws:logs:ap-southeast-1:*:*"
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "ec2:CreateNetworkInterface",
+                "ec2:DescribeNetworkInterfaces",
+                "ec2:DeleteNetworkInterface"
+            ],
+            "Resource": "*"
+        }
+    ]
+}
+```
+> 💡 Chỉ có `DeleteItem` — không có quyền đọc, tạo, sửa.
+
+---
+
+**Role 5: `TaskManager-LambdaBaseRole`** — Role base (đề bài yêu cầu tạo, không gán cho Lambda nào)
+
 ```json
 {
     "Version": "2012-10-17",
@@ -212,6 +330,19 @@ Người C là người **xây dựng nền móng cho toàn bộ hệ thống**.
     ]
 }
 ```
+> 💡 **Không có** bất kỳ quyền DynamoDB nào — thể hiện sự phân tách rõ ràng.
+
+---
+
+**📋 Bảng tóm tắt — Gửi cho Người B để gán đúng Role vào từng Lambda:**
+
+| Role Name | Gán cho Lambda | DynamoDB được phép |
+|-----------|---------------|---------------------|
+| `TaskManager-GetTasks-Role` | `TaskManager-GetTasks` | `Query`, `GetItem` |
+| `TaskManager-CreateTask-Role` | `TaskManager-CreateTask` | `PutItem` |
+| `TaskManager-UpdateTask-Role` | `TaskManager-UpdateTask` | `UpdateItem` |
+| `TaskManager-DeleteTask-Role` | `TaskManager-DeleteTask` | `DeleteItem` |
+| `TaskManager-LambdaBaseRole` | *(không gán)* | Không có |
 
 ---
 
@@ -230,8 +361,10 @@ Người C là người **xây dựng nền móng cho toàn bộ hệ thống**.
 | **NE-1** | VPC > Endpoints → Status: Available + Service Name: `com.amazonaws.ap-southeast-1.dynamodb` | VPC Console > Endpoints |
 | **NE-3** | Route Table `TaskManager-Private-RT` → Routes → thấy `pl-xxx → vpce-xxx` | VPC > Route Tables |
 | **NE-4** | VPC > NAT Gateways → danh sách trống / tất cả Deleted | VPC Console |
-| **IM-1** | IAM > Roles → tìm "TaskManager" → thấy 2 roles khác nhau | IAM Console |
-| **IM-2** | JSON của LambdaTaskRole → Resource chứa ARN cụ thể của TasksTable, không phải `*` | IAM > Role > Policy JSON |
+| **IM-1** | IAM > Roles → lọc "TaskManager" → **thấy đủ 5 roles** | IAM Console |
+| **IM-2** | JSON của từng Role → `Resource` chứa ARN cụ thể của TasksTable, **không phải `*`** | IAM > Role > Policy JSON |
+
+> 💡 **Mẹo chụp IM-2:** Chụp JSON của **GetTasks-Role** là đủ minh chứng (có ARN DynamoDB cụ thể, chỉ có 2 actions `Query` + `GetItem`).
 
 ---
 
