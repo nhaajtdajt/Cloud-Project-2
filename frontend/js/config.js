@@ -4,13 +4,13 @@
 // ============================================================
 
 const CONFIG = {
-    // API Gateway Invoke URL (thay sau khi deploy)
-    API_URL: 'https://YOUR_API_ID.execute-api.ap-southeast-1.amazonaws.com/prod',
+  // API Gateway Invoke URL (thay sau khi deploy)
+  API_URL: "https://owuatkgwh3.execute-api.ap-southeast-1.amazonaws.com/prod",
 
-    // Amazon Cognito Configuration
-    COGNITO: {
-        REGION: 'ap-southeast-1',
-        USER_POOL_ID: 'ap-southeast-1_XXXXXXXXX',   // Thay bằng User Pool ID thực
-        APP_CLIENT_ID: 'xxxxxxxxxxxxxxxxxxxxxxxxxx'  // Thay bằng App Client ID thực
-    }
+  // Amazon Cognito Configuration
+  COGNITO: {
+    REGION: "ap-southeast-1",
+    USER_POOL_ID: "ap-southeast-1_XPD5UXGns", // Cập nhật User Pool ID thực của bạn
+    APP_CLIENT_ID: "29l4fmgm3t8paq1mat3l3tsvoj", // Cập nhật App Client ID thực của bạn
+  },
 };
