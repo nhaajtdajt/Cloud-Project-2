@@ -480,7 +480,7 @@ Checklist kiểm tra nghiêm ngặt trước khi nhấn nút Nộp bài:
 
 * [ ] **CloudWatch logs:** Log gọi dữ liệu hiển thị trạng thái StatusCode 200, hoàn toàn sạch bóng lỗi NetworkError (`NE-5`).
 
-* [ ] **IAM Policies:** Có đúng 2 Roles riêng lẻ, cấu hình trường Resource chỉ định đúng ARN của bảng, không chứa dấu `*` (`IM-1`, `IM-2`, `IM-3`).
+* [ ] **IAM Policies:** Có đúng 5 Roles riêng lẻ, cấu hình trường Resource chỉ định đúng ARN của bảng, không chứa dấu `*` (`IM-1`, `IM-2`, `IM-3`).
 
 * [ ] **Cognito Integration:** User Pool đã sẵn sàng, API Gateway Authorizer đã bật, thử gọi không token trả `401`, có token trả `200` (`CO-1`, `CO-2`, `CO-3`, `CO-4`).
 
