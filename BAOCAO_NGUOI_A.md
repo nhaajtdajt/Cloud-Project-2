@@ -86,7 +86,7 @@ Bộ lọc hoạt động hoàn toàn phía client (lọc trên mảng `allTasks
 
 ### 2.1. Tổng quan kiến trúc phân phối Frontend
 
-Thay vì để S3 bucket ở chế độ Public và bật Static Website Hosting (cách làm thông thường nhưng **BỊ CẤM** trong đồ án này), nhóm triển khai mô hình bảo mật theo yêu cầu:
+Thay vì để S3 bucket ở chế độ Public và bật Static Website Hosting, nhóm triển khai mô hình bảo mật theo yêu cầu:
 
 ```
 Người dùng (trình duyệt)
@@ -99,7 +99,7 @@ Người dùng (trình duyệt)
 ```
 
 **Giải thích luồng hoạt động:**
-1. Người dùng mở trình duyệt và truy cập URL: `https://[ĐIỀN_CLOUDFRONT_ID].cloudfront.net`.
+1. Người dùng mở trình duyệt và truy cập URL: `https://d35022l8np0raz.cloudfront.net`.
 2. Yêu cầu được gửi đến máy chủ biên (Edge Location) của CloudFront gần nhất với vị trí địa lý của người dùng.
 3. CloudFront kiểm tra bộ nhớ đệm (Cache):
    - **Cache HIT:** Nếu file đã được lưu trong cache, CloudFront trả về ngay lập tức mà không cần hỏi S3. Điều này giúp giảm đáng kể thời gian tải trang (latency) vì người dùng nhận file từ server gần nhất thay vì phải chờ truyền từ Region Singapore.
@@ -114,28 +114,29 @@ Người dùng (trình duyệt)
 
 | Cấu hình | Giá trị |
 |-----------|---------|
-| Tên bucket | `[ĐIỀN_TÊN_BUCKET]` |
-| Region | `ap-southeast-1` (Singapore) |
+| Tên bucket | `taskmanager-frontend-nhom3`|
+| Region | `ap-southeast-1` |
 | Block Public Access | ✅ BẬT cả 4 tùy chọn |
-| Static Website Hosting | ❌ TẮT (Không được bật theo yêu cầu đề) |
+| Static Website Hosting | ❌ TẮT |
 | Versioning | Tùy chọn |
 
 **Bucket Policy (chỉ cho phép CloudFront đọc qua OAC):**
 ```json
 {
-    "Version": "2012-10-17",
+    "Version": "2008-10-17",
+    "Id": "PolicyForCloudFrontPrivateContent",
     "Statement": [
         {
-            "Sid": "AllowCloudFrontServicePrincipalReadOnly",
+            "Sid": "AllowCloudFrontServicePrincipal",
             "Effect": "Allow",
             "Principal": {
                 "Service": "cloudfront.amazonaws.com"
             },
             "Action": "s3:GetObject",
-            "Resource": "arn:aws:s3:::[ĐIỀN_TÊN_BUCKET]/*",
+            "Resource": "arn:aws:s3:::taskmanager-frontend-nhom3/*",
             "Condition": {
-                "StringEquals": {
-                    "AWS:SourceArn": "arn:aws:cloudfront::[ĐIỀN_ACCOUNT_ID]:distribution/[ĐIỀN_DISTRIBUTION_ID]"
+                "ArnLike": {
+                    "AWS:SourceArn": "arn:aws:cloudfront::358140139843:distribution/E16K6V84GG5O24"
                 }
             }
         }
@@ -143,26 +144,32 @@ Người dùng (trình duyệt)
 }
 ```
 
-📸 **[CHỤP HÌNH SE-1]:** Chụp tab **Permissions** của S3 bucket cho thấy cả 4 ô Block Public Access đều bật (có dấu tích xanh).
+* Hình ảnh Tab **Permissions** của S3 bucket cho thấy cả 4 ô Block Public Access đều bật (có dấu tích xanh).
 
-📸 **[CHỤP HÌNH SE-2]:** Mở trình duyệt và truy cập trực tiếp URL S3 dạng `https://[TÊN_BUCKET].s3.amazonaws.com/index.html`. Chụp ảnh kết quả hiển thị lỗi **403 Forbidden / Access Denied**. (Hoặc dùng lệnh `curl` trong terminal và chụp output).
+![SE-1_S3-Bucket_Permissions](image/SE-1.png)
+
+* Hình ảnh truy cập trực tiếp URL S3 dạng `https://taskmanager-frontend-nhom3.s3.amazonaws.com/index.html` cho kết quả hiển thị lỗi **Access Denied**.
+
+![SE-2_S3-Bucket_Forbidden](image/SE-2.png)
 
 #### b) Amazon CloudFront Distribution
 
 | Cấu hình | Giá trị |
 |-----------|---------|
-| Distribution domain | `https://[ĐIỀN_CLOUDFRONT_ID].cloudfront.net` |
-| Origin domain | `[ĐIỀN_TÊN_BUCKET].s3.ap-southeast-1.amazonaws.com` |
+| Distribution domain | `https://d35022l8np0raz.cloudfront.net` |
+| Origin domain | `taskmanager-frontend-nhom3.s3.ap-southeast-1.amazonaws.com` |
 | Origin Access | **Origin Access Control (OAC)** |
-| Tên OAC | `[ĐIỀN_TÊN_OAC]` |
+| Tên OAC | `taskmanager-frontend-nhom3.s3.ap-southeast-1.amazonaws.com-mpuynfn4ej2` |
 | Default root object | `index.html` |
 | Viewer protocol policy | Redirect HTTP to HTTPS |
 | Price class | Use only North America and Europe (hoặc All edge locations) |
 
-📸 **[CHỤP HÌNH SE-3]:** Mở trình duyệt, truy cập URL CloudFront `https://[ĐIỀN_CLOUDFRONT_ID].cloudfront.net`. Chụp ảnh trang web hiển thị thành công với giao diện đăng nhập (HTTP status 200).
+* Hình ảnh truy cập URL CloudFront `https://d35022l8np0raz.cloudfront.net` cho kết quả hiển thị thành công với giao diện đăng nhập.  
 
-📸 **[CHỤP HÌNH SE-4]:** Vào CloudFront Console → chọn Distribution → tab **Origins** → chụp ảnh hiển thị rõ mục **"Origin access: Origin access control settings"** và tên OAC đã tạo.
+![SE-3_CloudFront_Success](image/SE-3.png)
 
+* Hình ảnh ở CloudFront/Distribution/CloudFront-ID, tab **Origins**, hiển thị **Origin name**, **Origin domain** và **Origin access**.  
+![SE-4_CloudFront_OAC](image/SE-4.png)  
 ---
 
 ## PHẦN 3: GIẢI THÍCH KHÁI NIỆM — CDN VÀ CƠ CHẾ OAC (~4% tổng điểm)
@@ -213,11 +220,11 @@ Amazon Cognito User Pool là dịch vụ quản lý người dùng (User Directo
 
 | Thông tin cấu hình | Giá trị |
 |---------------------|---------|
-| Tên User Pool | `[ĐIỀN VÀO]` |
-| Pool ID | `[ĐIỀN VÀO — ví dụ: ap-southeast-1_XPD5UXGns]` |
+| Tên User Pool | `TaskManager-UserPool` |
+| Pool ID | `ap-southeast-1_XPD5UXGns` |
 | Region | `ap-southeast-1` |
 | Sign-in options | Email |
-| MFA | Không bắt buộc (Optional) |
+| MFA | Optional |
 | Password policy | Tối thiểu 8 ký tự, bao gồm chữ hoa, chữ thường, số và ký tự đặc biệt |
 | Email verification | Có — Cognito gửi mã OTP 6 số qua email khi đăng ký |
 
@@ -225,24 +232,28 @@ Amazon Cognito User Pool là dịch vụ quản lý người dùng (User Directo
 
 | Thông tin | Giá trị |
 |-----------|---------|
-| App Client Name | `[ĐIỀN VÀO]` |
-| App Client ID | `[ĐIỀN VÀO — ví dụ: 29l4fmgm3t8paq1mat3l3tsvoj]` |
+| App Client Name | `TaskManager-WebClient` |
+| App Client ID | `29l4fmgm3t8paq1mat3l3tsvoj` |
 | Client Secret | Không tạo (phù hợp cho ứng dụng frontend JavaScript) |
 | Auth Flows | `ALLOW_USER_SRP_AUTH`, `ALLOW_REFRESH_TOKEN_AUTH` |
 
-📸 **[CHỤP HÌNH CO-1]:** Chụp giao diện **Cognito > User Pools** cho thấy rõ tên Pool và Pool ID.
+* Hình ảnh giao diện **Cognito > User Pools** với các thông số đã cấu hình.  
+![CO-1](image/CO-1.png)  
 
 ### 4.2. Cách Frontend tích hợp Cognito
 
 File `config.js` lưu trữ các thông số Cognito:
 ```javascript
 const CONFIG = {
-    API_URL: 'https://[API_ID].execute-api.ap-southeast-1.amazonaws.com/prod',
-    COGNITO: {
-        REGION: 'ap-southeast-1',
-        USER_POOL_ID: '[POOL_ID]',
-        APP_CLIENT_ID: '[CLIENT_ID]'
-    }
+  // API Gateway Invoke URL
+  API_URL: "https://owuatkgwh3.execute-api.ap-southeast-1.amazonaws.com/prod",
+
+  // Amazon Cognito Configuration
+  COGNITO: {
+    REGION: "ap-southeast-1",
+    USER_POOL_ID: "ap-southeast-1_XPD5UXGns",
+    APP_CLIENT_ID: "29l4fmgm3t8paq1mat3l3tsvoj",
+  },
 };
 ```
 
@@ -254,19 +265,22 @@ File `auth.js` sử dụng thư viện `amazon-cognito-identity-js` để:
 
 ### 4.3. Bằng chứng bảo mật Cognito
 
-📸 **[CHỤP HÌNH CO-3]:** Mở terminal (Command Prompt hoặc PowerShell) và chạy lệnh curl sau:
-```bash
-curl -X GET https://[API_URL]/tasks
-```
-Chụp ảnh kết quả trả về `{"message":"Unauthorized"}` với HTTP status **401**.
+* Hình ảnh **CO-3**: gọi API không token → 401 Unauthorized:
 
-📸 **[CHỤP HÌNH CO-4]:** Chạy lệnh curl kèm JWT token hợp lệ:
 ```bash
-curl -X GET https://[API_URL]/tasks -H "Authorization: [PASTE_JWT_TOKEN_Ở_ĐÂY]"
+curl -X GET https://owuatkgwh3.execute-api.ap-southeast-1.amazonaws.com/prod/tasks
 ```
-Chụp ảnh kết quả trả về danh sách công việc dạng JSON với HTTP status **200 OK**.
+Chụp ảnh kết quả trả về `{"message":"Unauthorized"}`.
+![CO-3](image/CO-3.png)
 
-> **Cách lấy JWT Token để test:** Đăng nhập vào ứng dụng trên trình duyệt, mở Developer Tools (F12) → tab Application → Local Storage → tìm key `idToken` → copy giá trị.
+* Hình ảnh **CO-4**: Chạy lệnh curl kèm JWT token hợp lệ:
+```bash
+curl -X GET https://owuatkgwh3.execute-api.ap-southeast-1.amazonaws.com/prod/tasks -H "Authorization: eyJraWQiOiI3Y3NIb1RvLzhydzRwQ01ldDg1ZGRmQTNldWQ1NkIzeTA3SGpTQW9lV3BNPSIsImFsZyI6IlJTMjU2In0.eyJzdWIiOiI1OTNhMzVlYy1jMGMxLTcwMmQtNDhiMS01YjgxZmJjNmZlNGMiLCJpc3MiOiJodHRwczovL2NvZ25pdG8taWRwLmFwLXNvdXRoZWFzdC0xLmFtYXpvbmF3cy5jb20vYXAtc291dGhlYXN0LTFfWFBENVVYR25zIiwiY29nbml0bzp1c2VybmFtZSI6IjU5M2EzNWVjLWMwYzEtNzAyZC00OGIxLTViODFmYmM2ZmU0YyIsIm9yaWdpbl9qdGkiOiI3ZDk2ZDA0Ny1lNGQ5LTRmYjMtYTIxOC02NGE3MDY1MzQwYzEiLCJhdWQiOiIyOWw0Zm1nbTN0OHBhcTFtYXQzbDN0c3ZvaiIsImV2ZW50X2lkIjoiNjAyOTUyMzctYmQxMC00YWMxLWI3MmUtMzA5Y2U5ZDdhZjM1IiwidG9rZW5fdXNlIjoiaWQiLCJhdXRoX3RpbWUiOjE3ODA1ODYyMjksImV4cCI6MTc4MDU4OTgyOSwiaWF0IjoxNzgwNTg2MjI5LCJqdGkiOiI2MWJlMDZkYi0zYzQyLTQxNWYtYTZjNy1iYjBhNDFkMzNmZDgiLCJlbWFpbCI6InVzZXIxQGV4YW1wbGUuY29tIn0.eBj6nOlUdS6JGhEXLSr-b_WtR-RJzNQ5ovYphe1WDri0Xi54IxKo_OrnsYN6NzPDQIBfqb3T7GcHWga6ALG71He1BIJQZiQmJYwUUhy75ehReCXh5ZbflFHo94cGicIP5gHJY3-RPnpYZabH_g_iLXGX6EFZatcsgctMGeLhfIcDf5kkxbtL9ua3zRCmWtiZAGW2cWREg_hHeXI5jrcgdbsq6MYTV8w09kGzoHD_wrcravem6hGf1Pmh53JcazWHdXjGmSonQpYoFWF03nM2g2ySaBHV81cfGPPR6NDr4WKVd0h8IipeImnHvwIj9EBlvqjr27ZvZmGbY2d6fhGEsA"
+```
+Chụp ảnh kết quả trả về danh sách công việc dạng JSON.  
+![CO-4](image/CO-4.png)  
+* Ảnh kết quả trả về sau khi được format định dạng JSON.  
+![CO-4.1](image/CO-4.1.png)  
 
 ---
 
@@ -274,14 +288,10 @@ Chụp ảnh kết quả trả về danh sách công việc dạng JSON với HT
 
 | ID | Mục bằng chứng | Trạng thái | Ghi chú |
 |----|---------------|------------|---------|
-| **SE-1** | S3 Block Public Access — 4 ô đều bật | `[ ]` Đã chụp | Chụp tab Permissions |
-| **SE-2** | Truy cập trực tiếp S3 → 403 Forbidden | `[ ]` Đã chụp | Dùng trình duyệt hoặc curl |
-| **SE-3** | Truy cập CloudFront → 200 OK + trang web hiện ra | `[ ]` Đã chụp | Ghi rõ URL CloudFront |
-| **SE-4** | OAC gắn vào CloudFront distribution | `[ ]` Đã chụp | Chụp tab Origins |
-| **CO-1** | Cognito User Pool đã tạo | `[ ]` Đã chụp | Ghi rõ Pool ID |
-| **CO-3** | Gọi API không token → 401 Unauthorized | `[ ]` Đã chụp | Dùng curl hoặc Postman |
-| **CO-4** | Gọi API kèm token → 200 OK + JSON data | `[ ]` Đã chụp | Dùng curl hoặc Postman |
-
----
-
-> 💬 **Người A hoàn thành file này xong thì gửi cho trưởng nhóm để gộp vào báo cáo chung.**
+| **SE-1** | S3 Block Public Access — 4 ô đều bật | `[x]` Đã chụp | Chụp tab Permissions |
+| **SE-2** | Truy cập trực tiếp S3 → 403 Forbidden | `[x]` Đã chụp | Dùng trình duyệt hoặc curl |
+| **SE-3** | Truy cập CloudFront → 200 OK + trang web hiện ra | `[x]` Đã chụp | Ghi rõ URL CloudFront |
+| **SE-4** | OAC gắn vào CloudFront distribution | `[x]` Đã chụp | Chụp tab Origins |
+| **CO-1** | Cognito User Pool đã tạo | `[x]` Đã chụp | Ghi rõ Pool ID |
+| **CO-3** | Gọi API không token → 401 Unauthorized | `[x]` Đã chụp | Dùng curl hoặc Postman |
+| **CO-4** | Gọi API kèm token → 200 OK + JSON data | `[x]` Đã chụp | Dùng curl hoặc Postman |
