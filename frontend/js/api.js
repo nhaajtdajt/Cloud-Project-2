@@ -7,12 +7,21 @@ const API_BASE = CONFIG.API_URL;
 // ============================================================
 // Helper: Tạo headers với Authorization token
 // ============================================================
-function getAuthHeaders() {
-    const token = getToken();
-    return {
-        'Content-Type': 'application/json',
-        'Authorization': token
-    };
+async function getAuthHeaders() {
+    try {
+        const token = await getValidToken();
+        return {
+            'Content-Type': 'application/json',
+            'Authorization': token
+        };
+    } catch (e) {
+        console.warn("Không thể lấy token mới tự động, sử dụng token hiện tại:", e);
+        const token = getToken();
+        return {
+            'Content-Type': 'application/json',
+            'Authorization': token || ''
+        };
+    }
 }
 
 // ============================================================
@@ -38,9 +47,10 @@ async function handleResponse(response) {
 // GET /tasks — Lấy toàn bộ danh sách công việc của user
 // ============================================================
 async function getTasks() {
+    const headers = await getAuthHeaders();
     const response = await fetch(`${API_BASE}/tasks`, {
         method: 'GET',
-        headers: getAuthHeaders()
+        headers: headers
     });
     return handleResponse(response);
 }
@@ -49,9 +59,10 @@ async function getTasks() {
 // POST /tasks — Tạo công việc mới
 // ============================================================
 async function createTask(taskData) {
+    const headers = await getAuthHeaders();
     const response = await fetch(`${API_BASE}/tasks`, {
         method: 'POST',
-        headers: getAuthHeaders(),
+        headers: headers,
         body: JSON.stringify({
             title: taskData.title,
             description: taskData.description || '',
@@ -67,9 +78,10 @@ async function createTask(taskData) {
 // PUT /tasks/:id — Cập nhật công việc theo ID
 // ============================================================
 async function updateTask(taskId, taskData) {
+    const headers = await getAuthHeaders();
     const response = await fetch(`${API_BASE}/tasks/${taskId}`, {
         method: 'PUT',
-        headers: getAuthHeaders(),
+        headers: headers,
         body: JSON.stringify(taskData)
     });
     return handleResponse(response);
@@ -79,9 +91,10 @@ async function updateTask(taskId, taskData) {
 // DELETE /tasks/:id — Xóa công việc theo ID
 // ============================================================
 async function deleteTask(taskId) {
+    const headers = await getAuthHeaders();
     const response = await fetch(`${API_BASE}/tasks/${taskId}`, {
         method: 'DELETE',
-        headers: getAuthHeaders()
+        headers: headers
     });
     return handleResponse(response);
 }
