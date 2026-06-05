@@ -21,181 +21,175 @@ const VALID_STATUSES = ["pending", "done"];
 export const handler = async (event) => {
   console.log("UpdateTask invoked:", JSON.stringify(event));
 
-  if (event.httpMethod === "OPTIONS") {
-    return { statusCode: 200, headers: corsHeaders, body: "" };
-  }
-
-  // 1. Parse body an toàn trước
-  let body;
-  try {
-    body = JSON.parse(event.body || "{}");
-  } catch (parseError) {
-    console.error("JSON Parse Error:", parseError);
-    return {
-      statusCode: 400,
-      headers: corsHeaders,
-      body: JSON.stringify({
-        message: "Định dạng dữ liệu (Body) không phải JSON hợp lệ.",
-      }),
-    };
-  }
-
-  try {
-    // 2. Kiểm tra thông tin định danh an toàn từ API Gateway
-    const userId = event.requestContext?.authorizer?.claims?.sub;
-    const taskId = event.pathParameters?.id;
-
-    if (!userId) {
-      return {
-        statusCode: 401,
-        headers: corsHeaders,
-        body: JSON.stringify({
-          message: "Không thể xác thực người dùng. Vui lòng đăng nhập lại.",
-        }),
-      };
+  const runHandler = async () => {
+    if (event.httpMethod === "OPTIONS") {
+      return { statusCode: 200, headers: corsHeaders, body: "" };
     }
 
-    if (!taskId) {
-      return {
-        statusCode: 400,
-        headers: corsHeaders,
-        body: JSON.stringify({ message: "Thiếu taskId trên đường dẫn URL" }),
-      };
-    }
-
-    // 3. Xây dựng biểu thức cập nhật động (Dynamic Update)
-    let updateExpression = "SET";
-    const expressionAttributeNames = {};
-    const expressionAttributeValues = {};
-    let hasUpdates = false;
-
-    if (body.title !== undefined) {
-      if (typeof body.title !== "string" || body.title.trim() === "") {
-        return {
-          statusCode: 400,
-          headers: corsHeaders,
-          body: JSON.stringify({
-            message: 'Trường "title" không được để trống.',
-          }),
-        };
-      }
-      updateExpression += " #title = :title,";
-      expressionAttributeNames["#title"] = "title";
-      expressionAttributeValues[":title"] = body.title.trim();
-      hasUpdates = true;
-    }
-
-    if (body.description !== undefined) {
-      updateExpression += " #desc = :desc,";
-      expressionAttributeNames["#desc"] = "description";
-      expressionAttributeValues[":desc"] =
-        typeof body.description === "string" ? body.description.trim() : "";
-      hasUpdates = true;
-    }
-
-    if (body.priority !== undefined) {
-      if (!VALID_PRIORITIES.includes(body.priority)) {
-        return {
-          statusCode: 400,
-          headers: corsHeaders,
-          body: JSON.stringify({
-            message: `Priority phải là một trong: ${VALID_PRIORITIES.join(", ")}`,
-          }),
-        };
-      }
-      updateExpression += " #pri = :pri,";
-      expressionAttributeNames["#pri"] = "priority";
-      expressionAttributeValues[":pri"] = body.priority;
-      hasUpdates = true;
-    }
-
-    if (body.dueDate !== undefined) {
-      updateExpression += " #due = :due,";
-      expressionAttributeNames["#due"] = "dueDate";
-      expressionAttributeValues[":due"] = body.dueDate;
-      hasUpdates = true;
-    }
-
-    if (body.status !== undefined) {
-      if (!VALID_STATUSES.includes(body.status)) {
-        return {
-          statusCode: 400,
-          headers: corsHeaders,
-          body: JSON.stringify({
-            message: `Status phải là một trong: ${VALID_STATUSES.join(", ")}`,
-          }),
-        };
-      }
-      updateExpression += " #st = :st,";
-      expressionAttributeNames["#st"] = "status";
-      expressionAttributeValues[":st"] = body.status;
-      hasUpdates = true;
-    }
-
-    // Nếu người dùng gửi body rỗng hoặc không trúng trường nào
-    if (!hasUpdates) {
+    let body;
+    try {
+      body = JSON.parse(event.body || "{}");
+    } catch (parseError) {
+      console.error("JSON Parse Error:", parseError);
       return {
         statusCode: 400,
         headers: corsHeaders,
         body: JSON.stringify({
-          message: "Không có thông tin hợp lệ nào để cập nhật.",
+          message: "Định dạng dữ liệu (Body) không phải JSON hợp lệ.",
         }),
       };
     }
 
-    // Cắt bỏ dấu phẩy thừa ở cuối chuỗi "SET trườngA = :a, trườngB = :b,"
-    updateExpression = updateExpression.slice(0, -1);
+    try {
+      const userId = event.requestContext?.authorizer?.claims?.sub;
+      const taskId = event.pathParameters?.id;
 
-    // 4. Chuẩn bị Params để gửi lên DynamoDB
-    const params = {
-      TableName: TABLE_NAME,
-      // Khóa chính để định vị bản ghi.
-      // LƯU Ý: Nếu bảng của bạn dùng composite key ( userId làm PK, taskId làm SK ) thì để nguyên bên dưới.
-      // Nếu bảng của bạn CHỈ CÓ taskId làm PK, hãy xóa dòng `userId: userId` đi.
-      Key: {
-        taskId: taskId,
-      },
-      UpdateExpression: updateExpression,
-      ExpressionAttributeNames: expressionAttributeNames,
-      ExpressionAttributeValues: expressionAttributeValues,
-      // Thêm ConditionExpression bảo mật tuyệt đối: Chỉ sửa nếu thuộc về đúng chủ nhân
-      ConditionExpression: "attribute_exists(taskId) AND userId = :uid",
-      ReturnValues: "ALL_NEW",
-    };
+      if (!userId) {
+        return {
+          statusCode: 401,
+          headers: corsHeaders,
+          body: JSON.stringify({
+            message: "Không thể xác thực người dùng. Vui lòng đăng nhập lại.",
+          }),
+        };
+      }
 
-    // Gán biến xác thực người dùng vào biểu thức điều kiện
-    params.ExpressionAttributeValues[":uid"] = userId;
+      if (!taskId) {
+        return {
+          statusCode: 400,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: "Thiếu taskId trên đường dẫn URL" }),
+        };
+      }
 
-    const result = await docClient.send(new UpdateCommand(params));
-    console.log(`Cập nhật thành công task: ${taskId} cho user: ${userId}`);
+      let updateExpression = "SET";
+      const expressionAttributeNames = {};
+      const expressionAttributeValues = {};
+      let hasUpdates = false;
 
-    return {
-      statusCode: 200,
-      headers: corsHeaders,
-      body: JSON.stringify(result.Attributes),
-    };
-  } catch (error) {
-    console.error("LỖI HỆ THỐNG (UpdateTask):", error);
+      if (body.title !== undefined) {
+        if (typeof body.title !== "string" || body.title.trim() === "") {
+          return {
+            statusCode: 400,
+            headers: corsHeaders,
+            body: JSON.stringify({
+              message: 'Trường "title" không được để trống.',
+            }),
+          };
+        }
+        updateExpression += " #title = :title,";
+        expressionAttributeNames["#title"] = "title";
+        expressionAttributeValues[":title"] = body.title.trim();
+        hasUpdates = true;
+      }
 
-    // Bắt lỗi khi điều kiện ConditionExpression thất bại (Sai user hoặc task không tồn tại)
-    if (error.name === "ConditionalCheckFailedException") {
+      if (body.description !== undefined) {
+        updateExpression += " #desc = :desc,";
+        expressionAttributeNames["#desc"] = "description";
+        expressionAttributeValues[":desc"] =
+          typeof body.description === "string" ? body.description.trim() : "";
+        hasUpdates = true;
+      }
+
+      if (body.priority !== undefined) {
+        if (!VALID_PRIORITIES.includes(body.priority)) {
+          return {
+            statusCode: 400,
+            headers: corsHeaders,
+            body: JSON.stringify({
+              message: `Priority phải là một trong: ${VALID_PRIORITIES.join(", ")}`,
+            }),
+          };
+        }
+        updateExpression += " #pri = :pri,";
+        expressionAttributeNames["#pri"] = "priority";
+        expressionAttributeValues[":pri"] = body.priority;
+        hasUpdates = true;
+      }
+
+      if (body.dueDate !== undefined) {
+        updateExpression += " #due = :due,";
+        expressionAttributeNames["#due"] = "dueDate";
+        expressionAttributeValues[":due"] = body.dueDate;
+        hasUpdates = true;
+      }
+
+      if (body.status !== undefined) {
+        if (!VALID_STATUSES.includes(body.status)) {
+          return {
+            statusCode: 400,
+            headers: corsHeaders,
+            body: JSON.stringify({
+              message: `Status phải là một trong: ${VALID_STATUSES.join(", ")}`,
+            }),
+          };
+        }
+        updateExpression += " #st = :st,";
+        expressionAttributeNames["#st"] = "status";
+        expressionAttributeValues[":st"] = body.status;
+        hasUpdates = true;
+      }
+
+      if (!hasUpdates) {
+        return {
+          statusCode: 400,
+          headers: corsHeaders,
+          body: JSON.stringify({
+            message: "Không có thông tin hợp lệ nào để cập nhật.",
+          }),
+        };
+      }
+
+      updateExpression = updateExpression.slice(0, -1);
+
+      const params = {
+        TableName: TABLE_NAME,
+        Key: {
+          taskId: taskId,
+        },
+        UpdateExpression: updateExpression,
+        ExpressionAttributeNames: expressionAttributeNames,
+        ExpressionAttributeValues: expressionAttributeValues,
+        ConditionExpression: "attribute_exists(taskId) AND userId = :uid",
+        ReturnValues: "ALL_NEW",
+      };
+
+      params.ExpressionAttributeValues[":uid"] = userId;
+
+      const result = await docClient.send(new UpdateCommand(params));
+      console.log(`Cập nhật thành công task: ${taskId} cho user: ${userId}`);
+
       return {
-        statusCode: 403, // Hoặc 404 tùy bạn muốn giấu thông tin hay không
+        statusCode: 200,
+        headers: corsHeaders,
+        body: JSON.stringify(result.Attributes),
+      };
+    } catch (error) {
+      console.error("LỖI HỆ THỐNG (UpdateTask):", error);
+
+      if (error.name === "ConditionalCheckFailedException") {
+        return {
+          statusCode: 403,
+          headers: corsHeaders,
+          body: JSON.stringify({
+            message:
+              "Công việc không tồn tại, hoặc bạn không có quyền chỉnh sửa công việc này.",
+          }),
+        };
+      }
+
+      return {
+        statusCode: 500,
         headers: corsHeaders,
         body: JSON.stringify({
-          message:
-            "Công việc không tồn tại, hoặc bạn không có quyền chỉnh sửa công việc này.",
+          message: "Lỗi server khi cập nhật công việc.",
+          error: error.message,
         }),
       };
     }
+  };
 
-    return {
-      statusCode: 500,
-      headers: corsHeaders,
-      body: JSON.stringify({
-        message: "Lỗi server khi cập nhật công việc.",
-        error: error.message,
-      }),
-    };
-  }
+  const response = await runHandler();
+  console.log(`Response StatusCode: ${response.statusCode}`);
+  return response;
 };
