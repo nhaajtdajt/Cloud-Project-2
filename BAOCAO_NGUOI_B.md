@@ -319,7 +319,7 @@ JavaScript trong `app.js` nhận response thành công → hiển thị Toast no
 
 ### 4.2. Sơ đồ tuần tự (Sequence Diagram) minh họa luồng đi của request:
 
-![Sơ đồ tuần tự luồng request](image/mermaid-diagram.png)
+![Sơ đồ tuần tự luồng request SD-3]
 
 ---
 

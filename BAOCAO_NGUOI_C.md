@@ -67,17 +67,17 @@ Security Group `TaskManager-Lambda-SG` được cấu hình theo nguyên tắc *
 | **Inbound** | *(Không có rule nào)* | — | — | Lambda không cần nhận kết nối từ bên ngoài (nó được kích hoạt bởi API Gateway thông qua cơ chế nội bộ của AWS, không phải qua mạng). |
 | **Outbound** | HTTPS | 443 | DynamoDB Prefix List (`pl-xxxxxx`) | Lambda chỉ được phép gửi traffic ra ngoài tới DynamoDB thông qua HTTPS port 443. **Không** có rule cho `0.0.0.0/0` → Lambda hoàn toàn không thể truy cập internet. |
 
-📸 **[CHỤP HÌNH]:** Chụp Security Group rules (cả Inbound và Outbound) để đưa vào phần phụ lục minh chứng.
+📸 **[CHỤP HÌNH C1.1 và C1.2]:** Chụp Security Group rules (cả Inbound và Outbound) để đưa vào phần phụ lục minh chứng.
 
 ### 1.5. VPC Gateway Endpoint cho DynamoDB
 
-**ID Endpoint:** `[ĐIỀN VÀO — vpce-xxxxxxxxx]`
+**ID Endpoint:** `vpce-09191a57260c8d54d`
 
 Sau khi tạo Gateway Endpoint, AWS tự động thêm một entry vào Route Table `TaskManager-Private-RT`:
 
 | Destination | Target | Giải thích |
 |-------------|--------|------------|
-| `pl-xxxxxx` (DynamoDB Prefix List) | `vpce-xxxxxxxx` (Gateway Endpoint) | Mọi traffic đi đến dải IP của DynamoDB sẽ được chuyển hướng qua Gateway Endpoint thay vì đi ra internet. |
+| `pl-67a5400e` (DynamoDB Prefix List) | `vpce-09191a57260c8d54d` (Gateway Endpoint) | Mọi traffic đi đến dải IP của DynamoDB sẽ được chuyển hướng qua Gateway Endpoint thay vì đi ra internet. |
 
 > **Prefix List** là gì? Đây là một nhóm các dải IP (CIDR blocks) mà AWS tự quản lý, đại diện cho tất cả các IP address của dịch vụ DynamoDB trong region Singapore. Thay vì bạn phải liệt kê từng IP (có thể thay đổi), AWS đóng gói tất cả vào một Prefix List ID (`pl-xxxxxx`) để bạn sử dụng trong Route Table và Security Group.
 
@@ -93,15 +93,14 @@ Sau khi tạo Gateway Endpoint, AWS tự động thêm một entry vào Route Ta
 
 ### 2.1. Nguyên tắc Đặc quyền tối thiểu (Least Privilege)
 
-Đề bài yêu cầu mỗi Lambda function phải có IAM Role riêng biệt (Mục IV.5.1). Nhóm đã tạo **5 IAM Roles** — 4 roles riêng cho 4 Lambda functions và 1 role base (không gán cho Lambda nào):
+Đề bài yêu cầu mỗi Lambda function phải có IAM Role riêng biệt (Mục IV.5.1). Nhóm đã tạo **4 IAM Roles** — 4 roles riêng cho 4 Lambda functions:
 
 | STT | Role Name | Gán cho Lambda | Quyền DynamoDB | Lý do |
 |-----|-----------|---------------|----------------|-------|
-| 1 | `TaskManager-GetTasks-Role` | `TaskManager-GetTasks` | `Query`, `GetItem` | Chỉ cần ĐỌC dữ liệu, không cần ghi/sửa/xóa |
+| 1 | `TaskManager-GetTasks-Role` | `TaskManager-GetTasks` | `Query` | Chỉ cần ĐỌC danh sách theo userId qua GSI — dùng Query là đủ |
 | 2 | `TaskManager-CreateTask-Role` | `TaskManager-CreateTask` | `PutItem` | Chỉ cần TẠO bản ghi mới |
 | 3 | `TaskManager-UpdateTask-Role` | `TaskManager-UpdateTask` | `UpdateItem` | Chỉ cần CẬP NHẬT bản ghi đã tồn tại |
 | 4 | `TaskManager-DeleteTask-Role` | `TaskManager-DeleteTask` | `DeleteItem` | Chỉ cần XÓA bản ghi |
-| 5 | `TaskManager-LambdaBaseRole` | *(Không gán)* | *(Không có)* | Role cơ sở chỉ có quyền ghi log + tạo ENI (VPC) |
 
 **Tại sao phải tách riêng thay vì dùng chung 1 role?**
 
@@ -114,44 +113,81 @@ Bằng cách tách riêng, mỗi Lambda chỉ có đúng quyền tối thiểu n
 ### 2.2. Cấu trúc chi tiết của một IAM Policy (Ví dụ: GetTasks-Role)
 
 ```json
+AWSLambdaVPCAccessExecutionRole
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "AWSLambdaVPCAccessExecutionPermissions",
+            "Effect": "Allow",
+            "Action": [
+                "logs:CreateLogGroup",
+                "logs:CreateLogStream",
+                "logs:PutLogEvents",
+                "ec2:CreateNetworkInterface",
+                "ec2:DescribeNetworkInterfaces",
+                "ec2:DescribeSubnets",
+                "ec2:DeleteNetworkInterface",
+                "ec2:AssignPrivateIpAddresses",
+                "ec2:UnassignPrivateIpAddresses"
+            ],
+            "Resource": "*"
+        }
+    ]
+}
+
+DynamoDBQueryPolicy
 {
     "Version": "2012-10-17",
     "Statement": [
         {
             "Effect": "Allow",
-            "Action": ["dynamodb:Query", "dynamodb:GetItem"],
+            "Action": [
+                "dynamodb:Query"
+            ],
             "Resource": [
-                "arn:aws:dynamodb:ap-southeast-1:[ACCOUNT_ID]:table/TasksTable",
-                "arn:aws:dynamodb:ap-southeast-1:[ACCOUNT_ID]:table/TasksTable/index/userId-index"
+                "arn:aws:dynamodb:ap-southeast-1:358140139843:table/TasksTable",
+                "arn:aws:dynamodb:ap-southeast-1:358140139843:table/TasksTable/index/userId-index"
             ]
-        },
-        {
-            "Effect": "Allow",
-            "Action": ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"],
-            "Resource": "arn:aws:logs:ap-southeast-1:*:*"
-        },
-        {
-            "Effect": "Allow",
-            "Action": ["ec2:CreateNetworkInterface", "ec2:DescribeNetworkInterfaces", "ec2:DeleteNetworkInterface"],
-            "Resource": "*"
         }
     ]
 }
 ```
 
-**Phân tích từng Statement:**
+**Phân tích 2 Policy đính kèm vào Role `TaskManager-GetTasks-Role`:**
 
-1. **Statement 1 (DynamoDB):** Chỉ cho phép `Query` và `GetItem` — hai thao tác đọc. Trường `Resource` chỉ định chính xác ARN của bảng `TasksTable` và index `userId-index` — không dùng wildcard `*`. Điều này ngăn Lambda truy cập bất kỳ bảng DynamoDB nào khác trong tài khoản.
+Role này được gắn **2 policies riêng biệt** thay vì 1 policy gộp — điều này giúp tái sử dụng policy cho các Lambda khác nếu cần:
 
-2. **Statement 2 (CloudWatch Logs):** Cho phép Lambda ghi log vào CloudWatch. Đây là quyền bắt buộc để Lambda hoạt động — nếu không có, Lambda chạy nhưng không ghi được log, gây khó khăn cho việc debug.
+1. **Policy `AWSLambdaVPCAccessExecutionRole` (AWS Managed Policy):**
+   - Đây là policy được AWS cung cấp sẵn (Managed Policy). Nó cấp toàn bộ quyền cần thiết để Lambda hoạt động bên trong VPC:
+     - `logs:*` → Ghi log vào CloudWatch (bắt buộc để theo dõi, debug).
+     - `ec2:CreateNetworkInterface`, `ec2:DeleteNetworkInterface`... → Tạo và xóa ENI (Elastic Network Interface) trong Private Subnet. Đây là cơ chế AWS dùng để gắn Lambda vào VPC — nếu thiếu quyền này, Lambda sẽ không khởi động được.
+   - Trường `Resource: "*"` ở đây được AWS chấp nhận vì đây là quyền quản lý hạ tầng mạng nội bộ, không liên quan đến dữ liệu nhạy cảm.
 
-3. **Statement 3 (EC2 Network Interface):** Cho phép Lambda tạo, mô tả và xóa Elastic Network Interface (ENI) trong VPC. Đây là quyền bắt buộc khi Lambda được gắn vào VPC — Lambda cần tạo ENI để có địa chỉ IP trong Private Subnet.
+2. **Policy `DynamoDBQueryPolicy` (Inline / Customer Managed Policy):**
+   - Chỉ có **1 action duy nhất:** `dynamodb:Query` — hàm GetTasks chỉ cần truy vấn danh sách task theo `userId` qua GSI, không cần đọc từng item riêng lẻ (`GetItem`) hay ghi/sửa/xóa.
+   - Trường `Resource` chỉ định chính xác **2 ARN**: ARN bảng chính `TasksTable` VÀ ARN của index `userId-index`. Việc ghi đúng ARN của index là quan trọng — nếu chỉ ghi ARN bảng, Lambda vẫn bị lỗi `AccessDenied` khi Query qua GSI.
+   - **Không dùng wildcard `*`** cho Resource → đúng chuẩn Least Privilege.
 
-📸 **[CHỤP HÌNH IM-1]:** Vào IAM Console > Roles > tìm kiếm "TaskManager". Chụp ảnh danh sách cho thấy đủ **5 roles** với tên phân biệt rõ ràng.
+📸 **[CHỤP HÌNH IM-1]:** Vào IAM Console > Roles > tìm kiếm "TaskManager". Chụp ảnh danh sách cho thấy đủ **4 roles** (GetTasks, CreateTask, UpdateTask, DeleteTask) với tên phân biệt rõ ràng.
 
-📸 **[CHỤP HÌNH IM-2]:** Click vào role `TaskManager-GetTasks-Role` > mở Inline Policy > chuyển sang tab JSON. Chụp ảnh cho thấy:
-- Trường `Action` chỉ chứa `Query` và `GetItem` (không có `PutItem`, `DeleteItem`,...).
-- Trường `Resource` chứa ARN cụ thể của bảng (không phải `*`).
+📸 **[CHỤP HÌNH IM-2]:** Chụp ảnh Policy của cả 4 Roles để chứng minh nguyên tắc Least Privilege (Đặc quyền tối thiểu):
+
+**2.1. Role GetTasks:** Click vào role `TaskManager-GetTasks-Role` > tab **Permissions** > mở policy `DynamoDBQueryPolicy`. Chụp ảnh cho thấy:
+- Trường `Action` **chỉ có duy nhất** `dynamodb:Query`.
+- Trường `Resource` chứa **2 ARN cụ thể** (bảng và index), không phải `*`.
+
+**2.2. Role CreateTask:** Click vào role `TaskManager-CreateTask-Role` > tab **Permissions** > mở policy tương ứng. Chụp ảnh cho thấy:
+- Trường `Action` **chỉ có duy nhất** `dynamodb:PutItem`.
+- Trường `Resource` chứa ARN cụ thể của bảng, không phải `*`.
+
+**2.3. Role UpdateTask:** Click vào role `TaskManager-UpdateTask-Role` > tab **Permissions** > mở policy tương ứng. Chụp ảnh cho thấy:
+- Trường `Action` **chỉ có duy nhất** `dynamodb:UpdateItem`.
+- Trường `Resource` chứa ARN cụ thể của bảng, không phải `*`.
+
+**2.4. Role DeleteTask:** Click vào role `TaskManager-DeleteTask-Role` > tab **Permissions** > mở policy tương ứng. Chụp ảnh cho thấy:
+- Trường `Action` **chỉ có duy nhất** `dynamodb:DeleteItem`.
+- Trường `Resource` chứa ARN cụ thể của bảng, không phải `*`.
 
 ---
 
@@ -181,7 +217,7 @@ Nhóm sử dụng **Giải pháp 2: VPC Gateway Endpoint** — hoàn toàn tuân
 
 1. Lambda function (nằm trong Private Subnet) gửi request HTTPS tới endpoint DynamoDB (`dynamodb.ap-southeast-1.amazonaws.com`).
 2. Request tới Route Table của Private Subnet. Route Table kiểm tra destination IP.
-3. IP đích thuộc dải IP của DynamoDB → khớp với entry: `pl-xxxxxx (DynamoDB Prefix List) → vpce-xxxxxxxx (Gateway Endpoint)`.
+3. IP đích thuộc dải IP của DynamoDB → khớp với entry: `pl-67a5400e (DynamoDB Prefix List) → vpce-09191a57260c8d54d (Gateway Endpoint)`.
 4. Traffic được chuyển hướng qua Gateway Endpoint → đi trên **AWS Private Backbone** (mạng fiber nội bộ tốc độ cao của AWS, hoàn toàn tách biệt khỏi internet công cộng).
 5. Traffic tới DynamoDB, được xử lý, và kết quả trả về theo đường ngược lại (cũng qua Private Backbone).
 
@@ -189,7 +225,7 @@ Nhóm sử dụng **Giải pháp 2: VPC Gateway Endpoint** — hoàn toàn tuân
 - **Không có IP address:** Khác với VPC Interface Endpoint (có ENI và private IP), Gateway Endpoint hoạt động ở tầng Route Table — nó chỉ là một "entry" trong bảng định tuyến, không phải một thiết bị mạng vật lý.
 - **Chỉ hỗ trợ 2 dịch vụ:** DynamoDB và S3. Các dịch vụ AWS khác (SQS, SNS, Secrets Manager...) phải dùng Interface Endpoint (có phí). May mắn là đồ án này chỉ cần kết nối tới DynamoDB.
 
-`[NGƯỜI C CẦN LÀM: Vẽ sơ đồ so sánh trực quan 2 giải pháp (NAT Gateway vs VPC Gateway Endpoint). Gợi ý: vẽ 2 luồng song song — luồng 1 đi qua NAT ra internet rồi vào DynamoDB (gạch chéo/đánh dấu X), luồng 2 đi thẳng qua Gateway Endpoint tới DynamoDB (đánh dấu ✓). Dùng draw.io hoặc vẽ tay.]`
+`[NGƯỜI C CẦN LÀM: Vẽ sơ đồ SD-1 so sánh trực quan 2 giải pháp (NAT Gateway vs VPC Gateway Endpoint). Gợi ý: vẽ 2 luồng song song — luồng 1 đi qua NAT ra internet rồi vào DynamoDB (gạch chéo/đánh dấu X), luồng 2 đi thẳng qua Gateway Endpoint tới DynamoDB (đánh dấu ✓). Dùng draw.io hoặc vẽ tay.]`
 
 ---
 
@@ -197,7 +233,9 @@ Nhóm sử dụng **Giải pháp 2: VPC Gateway Endpoint** — hoàn toàn tuân
 
 > **Đây là sản phẩm bắt buộc nộp** (Mục V.2 của đề bài). Sơ đồ phải hiển thị rõ tất cả các thành phần sau:
 
-`[NGƯỜI C CẦN LÀM: Vẽ sơ đồ kiến trúc đầy đủ bằng draw.io, Lucidchart, hoặc vẽ tay rồi chụp ảnh. Sơ đồ phải bao gồm tất cả các thành phần trong bảng dưới đây:]`
+`[NGƯỜI C CẦN LÀM: Vẽ sơ đồ kiến trúc SD-2 đầy đủ bằng draw.io, Lucidchart, hoặc vẽ tay rồi chụp ảnh. Sơ đồ phải bao gồm tất cả các thành phần trong bảng dưới đây:]`
+
+Link mermaid: https://mermaid.ai/d/0b3d6dc4-633e-406e-95c5-783c1de418e2
 
 | Tầng | Thành phần bắt buộc trên sơ đồ | Đã vẽ? |
 |------|-------------------------------|--------|
@@ -232,13 +270,13 @@ Dashboard được cấu hình với 6 widgets giám sát thời gian thực:
 | 5 | API Latency | Line | `Latency` | AWS/ApiGateway | Thời gian phản hồi toàn trình (end-to-end) từ khi API Gateway nhận request đến khi trả response. Bao gồm cả thời gian Lambda chạy. |
 | 6 | API 4xx/5xx | Number | `4XXError`, `5XXError` | AWS/ApiGateway | 4xx = lỗi do client (VD: 401 Unauthorized, 400 Bad Request). 5xx = lỗi do server (VD: 500 Internal Server Error). Đây là chỉ số sức khỏe quan trọng nhất. |
 
-📸 **[CHỤP HÌNH Dashboard]:** Chụp toàn bộ màn hình CloudWatch Dashboard `TaskManager-Dashboard` cho thấy 6 widgets hiển thị **dữ liệu thực** (không được là "No data available"). Lưu ý: phải gọi API vài lần trước khi chụp để có data.
+📸 **[CHỤP HÌNH Dashboard DB-1] :** Chụp toàn bộ màn hình CloudWatch Dashboard `TaskManager-Dashboard` cho thấy 6 widgets hiển thị **dữ liệu thực** (không được là "No data available"). Lưu ý: phải gọi API vài lần trước khi chụp để có data.
 
 ### 5.2. CloudWatch Alarms & SNS Notification
 
 **SNS Topic:** `TaskManager-Alerts`
 - Protocol: Email
-- Endpoint: `[ĐIỀN_EMAIL_NHÓM]`
+- Endpoint: `nhatdat2905@gmail.com`
 - Subscription đã xác nhận: ✅
 
 **Alarm 1: Lambda-Error-Alarm**
@@ -265,7 +303,7 @@ Dashboard được cấu hình với 6 widgets giám sát thời gian thực:
 
 **Giải thích:** Lỗi 5xx là lỗi phía server (hệ thống của chúng ta gây ra, không phải lỗi của người dùng). Nếu có hơn 5 lỗi 5xx trong 5 phút, nghĩa là server đang "chết" hoặc có sự cố nghiêm trọng → cần can thiệp ngay.
 
-📸 **[CHỤP HÌNH Alarms]:** Vào CloudWatch > Alarms. Chụp ảnh cho thấy 2 Alarms (`Lambda-Error-Alarm` và `API-5xx-Alarm`) đang ở trạng thái **OK** (hoặc **ALARM** nếu đang có lỗi — cả hai trạng thái đều được chấp nhận).
+📸 **[CHỤP HÌNH Alarms CW-1]:** Vào CloudWatch > Alarms. Chụp ảnh cho thấy 2 Alarms (`Lambda-Error-Alarm` và `API-5xx-Alarm`) đang ở trạng thái **OK** (hoặc **ALARM** nếu đang có lỗi — cả hai trạng thái đều được chấp nhận).
 
 ---
 
@@ -282,7 +320,7 @@ Dashboard được cấu hình với 6 widgets giám sát thời gian thực:
 | Cảnh báo 1 | 80% of budgeted amount ($0.008) → Gửi email tới `[ĐIỀN_EMAIL]` |
 | Cảnh báo 2 | 100% of budgeted amount ($0.01) → Gửi email tới `[ĐIỀN_EMAIL]` |
 
-📸 **[CHỤP HÌNH Budget]:** Vào AWS Billing > Budgets. Chụp ảnh trang cấu hình Budget cho thấy rõ mức $0.01 và 2 alerts (80% + 100%).
+📸 **[CHỤP HÌNH Budget BG-1]:** Vào AWS Billing > Budgets. Chụp ảnh trang cấu hình Budget cho thấy rõ mức $0.01 và 2 alerts (80% + 100%).
 
 ### 6.2. Phân tích chi phí thực tế của dự án
 
@@ -303,7 +341,7 @@ Dưới đây là bảng phân tích chi phí từng dịch vụ AWS đã sử d
 | **NAT Gateway** | ❌ **KHÔNG SỬ DỤNG** | 0 | **$0** |
 | **TỔNG CỘNG** | — | — | **$0.00** |
 
-📸 **[CHỤP HÌNH Cost]:** Vào AWS Billing > Bills hoặc Cost Explorer. Chụp ảnh cho thấy tổng chi phí = $0.00 (hoặc ≤ $0.01).
+📸 **[CHỤP HÌNH Cost CS-1]:** Vào AWS Billing > Bills hoặc Cost Explorer. Chụp ảnh cho thấy tổng chi phí = $0.00 (hoặc ≤ $0.01).
 
 ### 6.3. Giải thích tại sao chi phí = $0
 
