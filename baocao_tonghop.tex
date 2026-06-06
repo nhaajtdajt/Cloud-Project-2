@@ -269,7 +269,7 @@ S3 bucket được cấu hình hoàn toàn \textbf{PRIVATE} — tất cả 4 tù
 \section{Thiết kế Backend API và Cơ sở Dữ liệu}
 
 \subsection{Kiến trúc 4 Lambda Functions riêng biệt}
-Backend sử dụng Node.js 22.x, hệ thống gồm 4 hàm Lambda độc lập, mỗi hàm đảm nhận đúng một chức năng CRUD:
+Backend sử dụng Node.js 22.x (để đón đầu và tránh phiên bản Node.js 20.x đã hết hạn hỗ trợ, chi tiết tham khảo tại \href{https://www.cloudquery.io/blog/aws-lambda-nodejs-20-eol}{AWS Lambda Node.js 20 EOL}), hệ thống gồm 4 hàm Lambda độc lập, mỗi hàm đảm nhận đúng một chức năng CRUD:
 
 \begin{longtable}{|p{0.3\textwidth}|p{0.15\textwidth}|p{0.5\textwidth}|}
 \hline
@@ -406,6 +406,8 @@ Dashboard được thiết lập với 6 widgets giám sát thời gian thực: 
     \label{img:CW-1}
 \end{figure}
 
+Để chứng minh các yêu cầu phi chức năng và tính đúng đắn của hệ thống, nhóm cũng đã kiểm tra thông tin các request được lưu trong CloudWatch Logs. Hình \ref{img:NE-5.1} dưới đây thể hiện log thực tế khi Lambda kết nối thành công với DynamoDB. Tuy nhiên thông tin statusCode không hiển thị ở phầnREPORT của CloudWatch Log Insights, chi tiết ta có thể tham khảo bài viết \href{https://aws.amazon.com/vi/blogs/mt/understanding-aws-lambda-behavior-using-amazon-cloudwatch-logs-insights/}{Understanding AWS Lambda behavior using Amazon CloudWatch Logs Insights}.
+
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.8\textwidth]{image/NE-5.1.jpg}
@@ -520,7 +522,7 @@ Trải nghiệm người dùng phụ thuộc rất lớn vào tốc độ tải 
 \subsection{Lambda Reserved Concurrency và API Gateway Throttling}
 
 \subsubsection{Reserved Concurrency là gì?}
-\textbf{Reserved Concurrency} (Đồng thời dành riêng) là một cơ chế của AWS Lambda cho phép giới hạn số lượng instances tối đa mà một hàm Lambda có thể chạy đồng thời tại cùng một thời điểm.
+\textbf{Reserved Concurrency} (Đồng thời dành riêng) là một cơ chế của AWS Lambda cho phép giới hạn số lượng instances tối đa mà một hàm Lambda có thể chạy đồng thời tại cùng một thời điểm (chi tiết cấu hình xem tại tài liệu AWS: \href{https://docs.aws.amazon.com/lambda/latest/dg/configuration-concurrency.html}{Configuring Reserved Concurrency}).
 
 Ví dụ: Nếu đặt Reserved Concurrency = 5 cho \texttt{GetTasksFunction}, thì dù có 100 request cùng lúc, chỉ có tối đa 5 instances chạy song song. Các request thừa sẽ bị từ chối (throttled) và trả về lỗi 429 (Too Many Requests).
 
@@ -800,6 +802,10 @@ AI giải thích chi tiết:
 %% ==================== PHẦN 7 ====================
 \newpage
 \section{Tài liệu Tham khảo}
-% Để trống theo yêu cầu
+\begin{enumerate}[label={[\arabic*]}]
+    \item \href{https://www.cloudquery.io/blog/aws-lambda-nodejs-20-eol}{AWS Lambda Node.js 20 End of Life (EOL)}
+    \item \href{https://docs.aws.amazon.com/lambda/latest/dg/configuration-concurrency.html}{Configuring reserved concurrency - AWS Lambda}
+    \item \href{https://aws.amazon.com/vi/blogs/mt/understanding-aws-lambda-behavior-using-amazon-cloudwatch-logs-insights/}{Understanding AWS Lambda behavior using Amazon CloudWatch Logs Insights}
+\end{enumerate}
 
 \end{document}
