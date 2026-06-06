@@ -7,7 +7,24 @@
 
 ---
 
-## PHẦN 0 — Mở đầu (~30 giây)
+# Mục lục
+
+0. [Phần mở đầu](#phần-0-mở-đầu)
+1. [Demo chức năng ứng dụng CRUD](#phần-1-demo-chức-năng-ứng-dụng-crud)
+2. [Bảo mật Frontend: S3 Private + CloudFront OAC](#phần-2-bảo-mật-frontend-s3-private--cloudfront-oac)
+3. [Bảo mật Backend: Cognito + API Gateway](#phần-3-bảo-mật-backend-cognito--api-gateway)
+4. [Networking: VPC + Gateway Endpoint](#phần-4-networking-vpc--gateway-endpoint)
+5. [IAM Least Privilege](#phần-5-iam-least-privilege)
+6. [Giám sát: CloudWatch Dashboard + Alarms + Budget](#phần-6-giám-sát-cloudwatch-dashboard--alarms--budget)
+7. [Sơ đồ kiến trúc tổng thể](#phần-7-sơ-đồ-kiến-trúc-tổng-thể)
+8. [Giải thích nhanh 4 khái niệm kỹ thuật](#phần-8-giải-thích-nhanh-4-khái-niệm-kỹ-thuật)
+9. [Kết thúc](#phần-9-kết-thúc)
+
+---
+
+<a id="phần-0-mở-đầu"></a>  
+
+## PHẦN 0 — Mở đầu (~30 giây)  
 
 **Lời nói:**
 > "Xin chào cô, em là [Tên], nhóm [Số nhóm], môn CSC11006 — Nhập môn Điện toán đám mây. Sau đây là video demo đồ án 2: Xây dựng Ứng dụng Web Serverless Quản lý Công việc (Task Manager) trên AWS với kiến trúc bảo mật và tối ưu chi phí. Nhóm gồm 3 thành viên: Nguyễn Văn Bình Dương (Frontend), Ngô Gia An (Backend), Trương Nhật Đạt (Infra & Security)."
@@ -15,6 +32,7 @@
 **Thao tác:** Không cần thao tác gì, chỉ cần quay mặt hoặc màn hình chính.
 
 ---
+<a id="phần-1-demo-chức-năng-ứng-dụng-crud"></a>
 
 ## PHẦN 1 — Demo chức năng ứng dụng CRUD (~3 phút)
 
@@ -94,6 +112,7 @@
 4. Nói: *"Như cô thấy, user 2 không nhìn thấy task của user 1. Dữ liệu được cô lập hoàn toàn nhờ GSI userId-index trên DynamoDB."*
 
 ---
+<a id="phần-2-bảo-mật-frontend-s3-private--cloudfront-oac"></a>
 
 ## PHẦN 2 — Bảo mật Frontend: S3 Private + CloudFront OAC (~2 phút)
 
@@ -115,7 +134,7 @@
 
 **Thao tác:**
 1. Mở tab trình duyệt mới
-2. Dán URL trực tiếp S3: `https://<bucket>.s3.ap-southeast-1.amazonaws.com/index.html`
+2. Dán URL trực tiếp S3: `https://taskmanager-frontend-nhom3.s3.ap-southeast-1.amazonaws.com/index.html`
 3. Kết quả hiển thị **403 Forbidden / AccessDenied**
 4. Nói: *"Truy cập trực tiếp S3 bị từ chối 403 — đáp ứng SE-2. Người dùng không thể bypass CloudFront."*
 
@@ -124,7 +143,7 @@
 > "Nhưng khi truy cập qua CloudFront thì hoạt động bình thường."
 
 **Thao tác:**
-1. Mở URL CloudFront: `https://<id>.cloudfront.net`
+1. Mở URL CloudFront: `https://d35022l8np0raz.cloudfront.net`
 2. Trang web hiển thị bình thường → Bấm F12, xem tab Network → Status **200 OK**
 3. Nói: *"CloudFront phục vụ nội dung thành công với HTTP 200 — đáp ứng SE-3."*
 
@@ -138,6 +157,7 @@
 3. Nói: *"Origin Access Control đã được gắn, chỉ CloudFront mới có quyền đọc S3 qua SigV4 — đáp ứng SE-4."*
 
 ---
+<a id="phần-3-bảo-mật-backend-cognito--api-gateway"></a>
 
 ## PHẦN 3 — Bảo mật Backend: Cognito + API Gateway (~2 phút)
 
@@ -161,17 +181,18 @@
 
 **Thao tác:**
 1. Mở terminal/PowerShell
-2. Chạy: `curl -X GET https://<api-id>.execute-api.ap-southeast-1.amazonaws.com/prod/tasks`
+2. Chạy: `curl -X GET https://owuatkgwh3.execute-api.ap-southeast-1.amazonaws.com/prod/tasks`
 3. Kết quả trả về **401 Unauthorized**
 4. Nói: *"Không có token, API Gateway trả 401 — đáp ứng CO-3."*
 
 ### 3.4 Gọi API có token → 200 (CO-4)
 **Thao tác:**
-1. Chạy: `curl -X GET https://<api-id>.execute-api.ap-southeast-1.amazonaws.com/prod/tasks -H "Authorization: <JWT_TOKEN>"`
+1. Chạy: `curl -X GET https://owuatkgwh3.execute-api.ap-southeast-1.amazonaws.com/prod/tasks -H "Authorization: <JWT_TOKEN>"` (thay bằng token thật của bạn)
 2. Kết quả trả về **200 OK** kèm dữ liệu JSON
 3. Nói: *"Gửi kèm JWT token hợp lệ, API trả 200 kèm danh sách task — đáp ứng CO-4."*
 
 ---
+<a id="phần-4-networking-vpc--gateway-endpoint"></a>
 
 ## PHẦN 4 — Networking: VPC + Gateway Endpoint (~2 phút)
 
@@ -206,10 +227,11 @@
 **Thao tác:**
 1. AWS Console → CloudWatch → Log Groups → `/aws/lambda/GetTasksFunction`
 2. Mở log stream mới nhất
-3. Chỉ rõ dòng `REPORT` với **StatusCode 200**, Duration, Billed Duration, Memory Used
-4. Nói: *"Log CloudWatch xác nhận Lambda gọi DynamoDB thành công với StatusCode 200, không có lỗi mạng — NE-5."*
+3. Chỉ rõ dòng `REPORT` với **StatusCode 200**, Duration, Billed Duration, Memory Used => Thực tế: không có "StatusCode 200". 
+4. Nói: *"Mặc dù không hiển thị StatusCode 200 (Theo tài liệu chính thống của AWS) tuy nhiên, Log CloudWatch xác nhận Lambda gọi DynamoDB thành công, không có lỗi mạng — NE-5."*
 
 ---
+<a id="phần-5-iam-least-privilege"></a>
 
 ## PHẦN 5 — IAM Least Privilege (~1.5 phút)
 
@@ -236,6 +258,7 @@
 4. (Có thể lướt nhanh qua 3 Lambda còn lại để chứng minh tương tự)
 
 ---
+<a id="phần-6-giám-sát-cloudwatch-dashboard--alarms--budget"></a>
 
 ## PHẦN 6 — Giám sát: CloudWatch Dashboard + Alarms + Budget (~2 phút)
 
@@ -276,6 +299,7 @@
 3. Nói: *"Tổng chi phí phát sinh trong suốt đồ án là $0, hoàn toàn nằm trong Free Tier nhờ không sử dụng NAT Gateway và sử dụng VPC Gateway Endpoint miễn phí."*
 
 ---
+<a id="phần-7-sơ-đồ-kiến-trúc-tổng-thể"></a>
 
 ## PHẦN 7 — Sơ đồ kiến trúc tổng thể (~1 phút)
 
@@ -294,6 +318,7 @@
 3. Nói: *"Sơ đồ thể hiện đầy đủ 9 tầng kiến trúc theo yêu cầu đề bài."*
 
 ---
+<a id="phần-8-giải-thích-nhanh-4-khái-niệm-kỹ-thuật"></a>
 
 ## PHẦN 8 — Giải thích nhanh 4 khái niệm kỹ thuật (~2 phút)
 
@@ -316,6 +341,7 @@
 > "Lambda nằm trong Private Subnet không có Internet Gateway nên không ra được internet. VPC Gateway Endpoint tạo một đường riêng trên backbone AWS để Lambda gọi DynamoDB mà không cần NAT Gateway. So sánh: NAT Gateway tốn ~$32/tháng và dữ liệu đi qua internet, còn Gateway Endpoint hoàn toàn miễn phí và bảo mật hơn."
 
 ---
+<a id="phần-9-kết-thúc"></a>
 
 ## PHẦN 9 — Kết thúc (~20 giây)
 
