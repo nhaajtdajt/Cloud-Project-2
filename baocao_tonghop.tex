@@ -433,15 +433,20 @@ Thiết lập AWS Budget ở mức giới hạn \$0.01, với hai mốc cảnh b
 %% ==================== PHẦN 4 ====================
 \section{Giải thích Các Khái niệm Kỹ thuật Cốt lõi}
 
-\subsection{Luồng đi của Request}
-Khi người dùng tạo công việc mới:
+\subsection{Luồng đi của Request (Request Lifecycle)}
+Để hiểu rõ hệ thống vận hành, dưới đây là vòng đời chi tiết của một Request từ lúc người dùng tương tác đến khi nhận kết quả (Ví dụ: Chức năng Tạo công việc mới):
+
 \begin{enumerate}
-    \item Trình duyệt gửi POST request kèm JWT Token tới API Gateway.
-    \item API Gateway kiểm tra Throttling và xác minh Cognito Token (qua Authorizer).
-    \item Nếu hợp lệ, API Gateway kích hoạt Lambda \texttt{CreateTask} nằm trong Private Subnet.
-    \item Lambda xử lý logic, tạo dữ liệu mới và gửi lệnh \texttt{PutItem} qua mạng riêng AWS thông qua VPC Gateway Endpoint.
-    \item Traffic tới DynamoDB mà không đi qua Internet.
-    \item Kết quả trả về theo đường ngược lại để đến trình duyệt.
+    \item \textbf{Tải giao diện (Frontend):} Trình duyệt của người dùng gửi yêu cầu lấy trang web. Request được phân giải DNS (Route 53) trỏ tới \textbf{CloudFront}. CloudFront kiểm tra bộ đệm, nếu chưa có (Cache MISS) sẽ sử dụng OAC để lấy file tĩnh (HTML/CSS/JS) từ \textbf{S3 Private Bucket} rồi trả về và hiển thị lên trình duyệt.
+    \item \textbf{Gửi API Request:} Người dùng điền thông tin và bấm "Tạo". Trình duyệt đính kèm \textbf{JWT Access Token} (lấy từ Cognito sau khi đăng nhập) vào Header và gửi một HTTP POST request tới \textbf{API Gateway}.
+    \item \textbf{Xác thực tại API Gateway:} Trước khi xử lý, API Gateway thực hiện 2 việc:
+    \begin{itemize}
+        \item Kiểm tra giới hạn tốc độ (Throttling) xem user có spam request không.
+        \item Đẩy JWT Token sang \textbf{Cognito Authorizer} để giải mã và xác minh chữ ký hợp lệ. Nếu sai, trả về lỗi 401 Unauthorized ngay lập tức để bảo vệ hệ thống.
+    \end{itemize}
+    \item \textbf{Kích hoạt Compute:} Nếu xác thực thành công, API Gateway kích hoạt (invoke) hàm \textbf{Lambda \texttt{CreateTaskFunction}}. Hàm Lambda này được AWS cấp phát tài nguyên tính toán (RAM, CPU) và chạy bên trong một \textbf{Private Subnet} của Custom VPC.
+    \item \textbf{Tương tác Database (Không qua Internet):} Hàm Lambda xử lý logic (tạo UUID, gán timestamp) và tạo một lệnh \texttt{PutItem}. Gói tin mạng thay vì đi ra Internet, sẽ được định tuyến bởi Route Table chui vào \textbf{VPC Gateway Endpoint}. Từ đây, gói tin chạy dọc theo đường cáp quang nội bộ (Backbone) của AWS để đến đích là bảng \textbf{DynamoDB}.
+    \item \textbf{Phản hồi (Response):} DynamoDB báo ghi thành công về Lambda. Lambda trả JSON về API Gateway. API Gateway chuyển đổi thành HTTP 200 OK trả về cho trình duyệt người dùng để hiển thị thông báo.
 \end{enumerate}
 
 \begin{figure}[H]
@@ -451,10 +456,24 @@ Khi người dùng tạo công việc mới:
     \label{img:SD-3}
 \end{figure}
 
-\subsection{VPC Gateway Endpoint so với NAT Gateway}
+\subsection{Mạng VPC Endpoint và Kết nối DynamoDB}
+
+\textbf{Tại sao Lambda trong Private Subnet cần VPC Endpoint?}
+Để tuân thủ nguyên tắc bảo mật tối đa, các hàm Lambda chứa logic nghiệp vụ được đặt hoàn toàn trong \textbf{Private Subnet}. Môi trường này bị cô lập tĩnh, không có Internet Gateway (IGW), nghĩa là không có đường truyền ra Internet công cộng. Tuy nhiên, Amazon DynamoDB lại là một dịch vụ PaaS của AWS có điểm cuối (Endpoint) nằm ở mạng lưới Public. Do đó, nếu Lambda gọi API tới DynamoDB thông thường, nó sẽ bị rớt gói tin (Timeout) vì không biết đường đi.
+
+Để giải bài toán này, kiến trúc có 2 hướng giải quyết:
+
 \begin{itemize}
-    \item \textbf{VPC Gateway Endpoint (Đang dùng):} Traffic từ Lambda tới DynamoDB đi trên mạng backbone riêng của AWS. Hoàn toàn miễn phí (\$0) và bảo mật hơn vì không ra internet.
-    \item \textbf{NAT Gateway (Không dùng):} Phải cấu hình qua Internet Gateway. Chi phí rất cao (\textasciitilde\$32/tháng) và có rủi ro bảo mật vì dữ liệu đi qua internet công cộng.
+    \item \textbf{VPC Gateway Endpoint (Giải pháp nhóm chọn - Tối ưu nhất):} Đây là một cơ chế tạo ra một "đường hầm mạng" ảo (Virtual Sink) nối thẳng Private Subnet với DynamoDB.
+    \begin{itemize}
+        \item \textit{Bản chất kỹ thuật:} AWS sẽ thêm một bản ghi trực tiếp vào \textbf{Route Table} của Private Subnet, chỉ định mọi traffic trỏ tới dải IP của DynamoDB (Prefix List) sẽ được hút vào VPC Endpoint.
+        \item \textit{Đường đi của traffic:} Dữ liệu truyền từ Lambda $\rightarrow$ Route Table $\rightarrow$ VPC Endpoint $\rightarrow$ đi dọc theo hạ tầng cáp quang nội bộ (AWS Private Backbone) $\rightarrow$ DynamoDB.
+        \item \textit{Bảo mật \& Chi phí:} Đạt chuẩn bảo mật cực cao vì gói tin không bao giờ bị rò rỉ ra Internet. Đặc biệt, giải pháp này \textbf{hoàn toàn miễn phí (\$0)}.
+    \end{itemize}
+    \item \textbf{NAT Gateway (Giải pháp sai lệch kiến trúc Serverless):} Đặt một máy chủ NAT Gateway ở Public Subnet. Route Table của Private Subnet sẽ đẩy traffic ra NAT, NAT bọc lại rồi đẩy ra Internet công cộng, sau đó chui ngược vào DynamoDB.
+    \begin{itemize}
+        \item \textit{Rủi ro \& Lãng phí:} Phát sinh độ trễ mạng, rủi ro bảo mật (Man-in-the-Middle) trên Internet. Tệ nhất là máy chủ NAT Gateway bị tính phí duy trì theo giờ, tốn khoảng \textbf{\$32/tháng} dù không có request nào, phá vỡ hoàn toàn nguyên tắc tối ưu chi phí của hệ thống Serverless.
+    \end{itemize}
 \end{itemize}
 
 \begin{figure}[H]
@@ -464,11 +483,38 @@ Khi người dùng tạo công việc mới:
     \label{img:SD-1}
 \end{figure}
 
-\subsection{Khả năng Tự động Mở rộng (Auto Scaling)}
-Kiến trúc hoàn toàn Serverless theo mô hình "scale to zero":
+\subsection{CDN và Cơ chế OAC (Bảo mật Frontend)}
+
+\textbf{Bản chất hoạt động của CloudFront Caching (Bộ đệm phân phối):}
+Trải nghiệm người dùng phụ thuộc rất lớn vào tốc độ tải trang (Frontend). Nhóm sử dụng Amazon CloudFront là mạng phân phối nội dung (CDN) lưu trữ bản sao của HTML/CSS/JS tại hàng trăm máy chủ biên (Edge Locations) trên toàn cầu.
 \begin{itemize}
-    \item \textbf{Lambda:} Không có request $\rightarrow$ không có máy chủ nào chạy. Khi có nhiều request, Lambda tự động khởi tạo nhiều instances song song (tối đa theo hạn mức).
-    \item \textbf{API Gateway:} Tự động đóng vai trò như Load Balancer, phân phối tải tới các Lambda instances mà không cần máy chủ cân bằng tải (ALB) truyền thống.
+    \item \textbf{Cache HIT:} Giả sử người dùng ở Việt Nam truy cập web, request sẽ đến Edge Location tại Đông Nam Á. Nếu file đã có sẵn trong bộ đệm (do có người tải trước đó), CloudFront lập tức trả file về. Tốc độ cực nhanh (chỉ $\sim$10-20ms) và hoàn toàn \textbf{không gửi request về Origin} (S3 gốc), giúp giảm tải hệ thống.
+    \item \textbf{Cache MISS:} Nếu file chưa có trong bộ đệm (hoặc người quản trị vừa deploy code mới làm vô hiệu hóa cache cũ), CloudFront bắt buộc phải mở kết nối về S3 Bucket gốc để kéo file đó lên, lưu vào bộ đệm, rồi mới gửi cho người dùng. Tốn thời gian hơn Cache HIT nhưng đảm bảo file luôn mới nhất.
+\end{itemize}
+
+\textbf{Vai trò cốt lõi của OAC và lý do S3 bắt buộc phải Private:}
+\begin{itemize}
+    \item \textbf{S3 Private là gì?} S3 được khóa toàn bộ 4 lớp bảo vệ (Block Public Access). Nghĩa là không có bất kỳ ai trên Internet có thể gõ URL S3 trực tiếp để tải file. Nếu cố tình truy cập sẽ nhận lỗi \textbf{403 Access Denied}.
+    \item \textbf{Vai trò của OAC (Origin Access Control):} Làm sao CloudFront lấy được file khi S3 đã khóa? OAC chính là "chìa khóa vạn năng". OAC sử dụng giao thức ký xác thực \textbf{AWS SigV4} để ký mã hóa lên mọi request mà CloudFront gửi về S3. S3 Bucket Policy được cấu hình để \textit{chỉ mở cửa} duy nhất cho những request có chữ ký OAC hợp lệ của chính Distribution này.
+    \item \textbf{Hậu quả nếu cấu hình S3 Public (Không dùng OAC):}
+    \begin{enumerate}
+        \item \textbf{Bypass CDN:} Hacker có thể bỏ qua CloudFront, truy cập trực tiếp vào URL của S3. Hệ thống mất hoàn toàn lợi ích của Cache, web load chậm.
+        \item \textbf{Bùng nổ chi phí:} AWS tính phí Data Transfer Out (truyền dữ liệu ra ngoài) từ S3 đắt hơn rất nhiều so với từ CloudFront. Hacker có thể viết tool tải file liên tục trên S3 làm cháy túi người dùng.
+        \item \textbf{Rủi ro bảo mật:} Dễ bị kẻ gian liệt kê (list) toàn bộ cấu trúc thư mục frontend, rò rỉ các file cấu hình nhạy cảm.
+    \end{enumerate}
+\end{itemize}
+
+\subsection{Khả năng Tự động Mở rộng (Auto Scaling Serverless)}
+Điểm nổi bật nhất của kiến trúc này so với máy ảo EC2 truyền thống là khả năng \textbf{tự động co giãn đàn hồi (Elasticity)} theo mô hình "Scale to Zero".
+
+\begin{itemize}
+    \item \textbf{Scale to Zero (Co về số 0):} Khi không có ai truy cập web (Ví dụ: ban đêm), không có bất kỳ một máy chủ ảo, CPU hay RAM nào đang được bật để chạy ngầm. Hệ thống "ngủ đông" hoàn toàn $\rightarrow$ \textbf{Chi phí duy trì = \$0}.
+    \item \textbf{Scale out (Mở rộng ngang):} Khi có lưu lượng truy cập tăng vọt (Ví dụ: 100 người dùng thao tác cùng lúc):
+    \begin{itemize}
+        \item \textbf{Lambda:} Không giống EC2 phải mất vài phút để khởi động máy ảo mới (Booting), AWS Lambda sử dụng công nghệ MicroVM (Firecracker) giúp khởi tạo hàng chục instances chạy song song chỉ trong vài phần nghìn giây. Nhờ đó, 100 request sẽ được 100 tiến trình Lambda độc lập xử lý đồng thời.
+        \item \textbf{API Gateway như một Load Balancer tự nhiên:} Trong hệ thống truyền thống, ta phải tốn tiền thuê Application Load Balancer (ALB) để chia đều request cho các máy chủ. Với Serverless, bản thân API Gateway đã có khả năng tiếp nhận hàng chục ngàn request/giây và tự động định tuyến (invoke) request đó sang cho Lambda xử lý. Nó đảm nhận vai trò cân bằng tải hoàn toàn tự động, \textbf{không cần cấu hình thủ công} và \textbf{chỉ tính tiền trên mỗi request}.
+    \end{itemize}
+    \item \textbf{Vấn đề Cold Start:} Vì Lambda khởi động môi trường tính toán từ con số 0 khi có request đầu tiên sau thời gian rảnh rỗi, request này sẽ phản hồi chậm hơn bình thường một chút (gọi là Cold Start). Tuy nhiên, các request liền sau đó sẽ được sử dụng lại instance đã khởi động (Warm Start) nên tốc độ phản hồi cực kỳ nhanh (vài mili-giây).
 \end{itemize}
 
 \subsection{Lambda Reserved Concurrency và API Gateway Throttling}
