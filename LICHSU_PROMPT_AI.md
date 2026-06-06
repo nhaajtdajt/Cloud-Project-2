@@ -3,7 +3,7 @@
 > **Môn:** CSC11006 — Nhập môn Điện toán đám mây
 > **Đồ án:** PROJECT2 — Xây dựng Ứng dụng Web Serverless với Kiến trúc bảo mật & Tối ưu chi phí
 > **Công cụ AI sử dụng:** Antigravity IDE (Gemini / Claude)
-> **Thời gian sử dụng:** 25/05/2026 — 06/06/2026
+> **Link git hub** https://github.com/nhaajtdajt/Cloud-Project-2
 
 ---
 

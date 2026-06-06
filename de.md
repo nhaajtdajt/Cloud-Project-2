@@ -377,7 +377,7 @@ Sinh viên tổng hợp toàn bộ ảnh chụp màn hình (Screenshot) hoặc f
 | **NE-3** | Route Table của Private Subnet chứa dòng pl-xxx $\rightarrow$ vpce-xxx | Hiểu biết Kiến trúc |
 | **NE-4** | Danh sách NAT Gateway trống hoặc hiển thị toàn bộ là Deleted | Hiệu quả Chi phí |
 | **NE-5** | CloudWatch log chứng minh Lambda gọi DynamoDB thành công | Giám sát |
-| **IM-1** | Hiển thị rõ hai IAM Roles riêng biệt với tên phân biệt | Triển khai Đám mây |
+| **IM-1** | Hiển thị rõ 4 IAM Roles riêng biệt với tên phân biệt | Triển khai Đám mây |
 | **IM-2** | Nội dung Policy JSON chỉ định rõ ARN cụ thể của bảng DynamoDB | Triển khai Đám mây |
 | **IM-3** | Từng Lambda function được gắn chính xác với Role của nó | Triển khai Đám mây |
 
@@ -480,7 +480,7 @@ Checklist kiểm tra nghiêm ngặt trước khi nhấn nút Nộp bài:
 
 * [ ] **CloudWatch logs:** Log gọi dữ liệu hiển thị trạng thái StatusCode 200, hoàn toàn sạch bóng lỗi NetworkError (`NE-5`).
 
-* [ ] **IAM Policies:** Có đúng 5 Roles riêng lẻ, cấu hình trường Resource chỉ định đúng ARN của bảng, không chứa dấu `*` (`IM-1`, `IM-2`, `IM-3`).
+* [ ] **IAM Policies:** Có đúng 4 Roles riêng lẻ, cấu hình trường Resource chỉ định đúng ARN của bảng, không chứa dấu `*` (`IM-1`, `IM-2`, `IM-3`).
 
 * [ ] **Cognito Integration:** User Pool đã sẵn sàng, API Gateway Authorizer đã bật, thử gọi không token trả `401`, có token trả `200` (`CO-1`, `CO-2`, `CO-3`, `CO-4`).
 
