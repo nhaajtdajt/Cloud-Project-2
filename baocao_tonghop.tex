@@ -482,7 +482,76 @@ Kiến trúc hoàn toàn Serverless theo mô hình "scale to zero":
 
 %% ==================== PHẦN 6 ====================
 \section{Lịch sử Sử dụng AI}
-\textit{[Mục này sẽ được bổ sung sau theo lịch sử Prompt AI của thành viên khác]}
+\begin{itemize}
+    \item \textbf{Môn:} CSC11006 — Nhập môn Điện toán đám mây
+    \item \textbf{Đồ án:} PROJECT2 — Xây dựng Ứng dụng Web Serverless với Kiến trúc bảo mật \& Tối ưu chi phí
+    \item \textbf{Công cụ AI sử dụng:} Antigravity IDE (Gemini / Claude)
+    \item \textbf{Link github:} \url{https://github.com/nhaajtdajt/Cloud-Project-2}
+    \item \textbf{Thời gian sử dụng:} 25/05/2026 — 06/06/2026
+\end{itemize}
+
+\subsection{Tổng kết sử dụng AI}
+\begin{longtable}{|p{0.3\textwidth}|p{0.65\textwidth}|}
+\hline
+\textbf{Hạng mục} & \textbf{Thống kê} \\ \hline
+\endhead
+\textbf{Tổng số prompt quan trọng} & 8 \\ \hline
+\textbf{Mục đích sử dụng chính} & Phân tích đề bài, phân công công việc, viết code, viết báo cáo, vẽ sơ đồ kiến trúc, giải thích khái niệm kỹ thuật \\ \hline
+\textbf{Các model AI đã dùng} & Claude Opus 4.6, Claude Sonnet 4.6, Gemini 3.1 Pro \\ \hline
+\textbf{Số file code AI tạo} & 11 files (6 frontend + 4 backend Lambda + 1 CSS) \\ \hline
+\textbf{Số file báo cáo AI tạo} & 4 files (3 báo cáo thành viên + 1 implementation plan) \\ \hline
+\textbf{Các sơ đồ AI tạo} & 2 sơ đồ Mermaid (kiến trúc tổng thể + so sánh NAT vs VPC Endpoint) \\ \hline
+\end{longtable}
+
+\subsection{Chi tiết các câu Prompt nổi bật}
+\textit{Chú thích: Prompt 1 $\rightarrow$ 7 là của thành viên C (Nhật Đạt). Prompt 8 là của thành viên A (Bình Dương).}
+
+\subsubsection{Prompt \#1 — Đọc và phân tích đề bài đồ án}
+\textbf{Ngày:} 25/05/2026 $|$ \textbf{Model:} Claude Opus\\
+\textbf{Câu Prompt:} \textit{"bạn đọc thật kĩ file đồ án 2 de.md này của tôi đi đọc thật kĩ để hiểu và tôi sẽ đưa ra yêu cầu cho bạn làm... đọc kĩ lại 1 lần để không sót bất cứ 1 chức năng hay ý nào đi"}\\
+\textbf{Kết quả:} AI đã đọc và tổng hợp thành bảng phân tích chi tiết gồm 7 thành phần chính, 16 mục bằng chứng, rubric chấm điểm và 8 điểm cấm.\\
+\textbf{Đánh giá:} AI đã làm tốt phần này.
+
+\subsubsection{Prompt \#2 — Phân công công việc cho 3 thành viên}
+\textbf{Ngày:} 25/05/2026 $|$ \textbf{Model:} Claude Opus\\
+\textbf{Câu Prompt:} \textit{"giờ tôi sẽ làm đồ án này với 3 người bạn hãy suy nghĩ thật kĩ để tạo công việc ra cho 3 người và chỉ rõ ra từng bước..."}\\
+\textbf{Kết quả:} AI tạo bản kế hoạch phân công cực kỳ chi tiết gồm 31+ bước, chia cho 3 người, kèm sơ đồ triển khai và bảng phối hợp.\\
+\textbf{Đánh giá:} Tốt.
+
+\subsubsection{Prompt \#3 — Viết toàn bộ source code Frontend + Backend}
+\textbf{Ngày:} 25/05/2026 $|$ \textbf{Model:} Claude Opus + Gemini Pro\\
+\textbf{Kết quả:} AI tạo toàn bộ cấu trúc dự án và viết code cho 11 files (6 frontend, 4 backend Lambda). Đầy đủ chức năng CRUD, CORS, validation.\\
+\textbf{Đánh giá:} Tốt.
+
+\subsubsection{Prompt \#4 — Hướng dẫn cấu hình AWS Budget}
+\textbf{Ngày:} 03/06/2026 $|$ \textbf{Model:} Gemini Pro\\
+\textbf{Câu Prompt:} \textit{"tôi đang làm tới đây có đúng không và làm gì nữa" (kèm ảnh)}\\
+\textbf{Kết quả:} AI nhận ra lỗi dùng sai template "Zero spend budget" (chỉ có 1 mức cảnh báo) và hướng dẫn cấu hình chi tiết 2 mức 80\% và 100\% để không bị trừ điểm.\\
+\textbf{Đánh giá:} AI đã hướng dẫn đúng phần này.
+
+\subsubsection{Prompt \#5 — Viết 3 file báo cáo chi tiết}
+\textbf{Ngày:} 03/06/2026 $|$ \textbf{Model:} Claude Opus\\
+\textbf{Câu Prompt:} Yêu cầu sinh ra 3 file báo cáo đầy đủ, chi tiết, hướng dẫn người dùng chụp ảnh minh chứng.\\
+\textbf{Kết quả:} Tạo ra 3 file Markdown chi tiết cho 3 người (Frontend, Backend, Infra) với chú thích chụp ảnh rõ ràng.\\
+\textbf{Đánh giá:} Báo cáo rất rõ ràng.
+
+\subsubsection{Prompt \#6 — Vẽ sơ đồ so sánh NAT Gateway vs VPC Gateway Endpoint}
+\textbf{Ngày:} 06/06/2026 $|$ \textbf{Model:} Claude Sonnet\\
+\textbf{Câu Prompt:} \textit{"cho tôi code vẽ bằng mermaid để vẽ cái này đi vẽ chi tiết cho tôi nhé"}\\
+\textbf{Kết quả:} Sinh ra code Mermaid so sánh 2 luồng đi với giải thích chi phí (\$0.045/giờ vs \$0).\\
+\textbf{Đánh giá:} Tốt.
+
+\subsubsection{Prompt \#7 — Vẽ sơ đồ kiến trúc tổng thể}
+\textbf{Ngày:} 06/06/2026 $|$ \textbf{Model:} Claude Sonnet\\
+\textbf{Câu Prompt:} \textit{"Giờ vẽ cho tôi phần này nhé thật chi tiết vào vì đây là phần quan trọng cho tôi code ở dạng mermaid và không để icon vào"}\\
+\textbf{Kết quả:} Sinh ra code Mermaid đầy đủ 9 tầng kiến trúc, mã màu rõ ràng, ghi chú chi tiết.\\
+\textbf{Đánh giá:} Đã kiểm tra và thấy hợp lý.
+
+\subsubsection{Prompt \#8 — Giải thích cách tắt Client Secret trong Cognito}
+\textbf{Ngày:} 28/05/2026 $|$ \textbf{Model:} Gemini 3.1 Pro\\
+\textbf{Câu Prompt:} Hỏi về việc Cognito tự sinh Client Secret và cách tắt nó khi tạo App Client cho Frontend.\\
+\textbf{Kết quả:} AI phát hiện vi phạm bảo mật (Frontend không được dùng Client Secret) và hướng dẫn cách tạo lại App Client với tùy chọn "Don't generate a client secret".\\
+\textbf{Đánh giá:} Khắc phục tốt vấn đề bảo mật.
 
 %% ==================== PHẦN 7 ====================
 \newpage
