@@ -89,14 +89,11 @@ KHOA CÔNG NGHỆ THÔNG TIN}
 
 \vspace{1cm}
 \fontsize{14pt}{16pt}\selectfont NHẬP MÔN ĐIỆN TOÁN ĐÁM MÂY -- CSC11006\\
-ĐỒ ÁN SỐ 1\\
+ĐỒ ÁN SỐ 2\\
 \vspace{12pt}
-\textbf{\fontsize{18pt}{20pt}\selectfont INTELLIGENT CLOUD-BASED}\\
-\textbf{\fontsize{18pt}{20pt}\selectfont LOG ANALYTICS \& BI SYSTEM}
+\textbf{\fontsize{16pt}{18pt}\selectfont XÂY DỰNG ỨNG DỤNG WEB SERVERLESS}\\
+\textbf{\fontsize{16pt}{18pt}\selectfont VỚI KIẾN TRÚC BẢO MẬT \& TỐI ƯU CHI PHÍ}
 
-\vspace{0.5cm}
-\fontsize{12pt}{14pt}\selectfont
-\textit{Hệ Thống Phân Tích Log Thông Minh Trên Nền Tảng Đám Mây}
 
 \vspace{2cm}
 \begin{tabular}{l l}
@@ -162,6 +159,7 @@ CS-1 & Báo cáo Cost Explorer chứng minh chi phí \$0 & \hyperref[img:CS-1]{X
 SD-1 & Sơ đồ so sánh VPC Gateway Endpoint vs NAT Gateway & \hyperref[img:SD-1]{Xem ảnh} \\ \hline
 SD-2 & Sơ đồ kiến trúc Serverless hệ thống tổng thể & \hyperref[img:SD-2]{Xem ảnh} \\ \hline
 SD-3 & Sơ đồ tuần tự luồng Request & \hyperref[img:SD-3]{Xem ảnh} \\ \hline
+RC-1 & Lỗi giới hạn Concurrency trên AWS Learner Lab & \hyperref[img:RC-1]{Xem ảnh} \\ \hline
 \end{longtable}
 \newpage
 
@@ -472,6 +470,70 @@ Kiến trúc hoàn toàn Serverless theo mô hình "scale to zero":
     \item \textbf{Lambda:} Không có request $\rightarrow$ không có máy chủ nào chạy. Khi có nhiều request, Lambda tự động khởi tạo nhiều instances song song (tối đa theo hạn mức).
     \item \textbf{API Gateway:} Tự động đóng vai trò như Load Balancer, phân phối tải tới các Lambda instances mà không cần máy chủ cân bằng tải (ALB) truyền thống.
 \end{itemize}
+
+\subsection{Lambda Reserved Concurrency và API Gateway Throttling}
+
+\subsubsection{Reserved Concurrency là gì?}
+\textbf{Reserved Concurrency} (Đồng thời dành riêng) là một cơ chế của AWS Lambda cho phép giới hạn số lượng instances tối đa mà một hàm Lambda có thể chạy đồng thời tại cùng một thời điểm.
+
+Ví dụ: Nếu đặt Reserved Concurrency = 5 cho \texttt{GetTasksFunction}, thì dù có 100 request cùng lúc, chỉ có tối đa 5 instances chạy song song. Các request thừa sẽ bị từ chối (throttled) và trả về lỗi 429 (Too Many Requests).
+
+Cơ chế này khác với \textbf{Provisioned Concurrency} (có tính phí) — Reserved Concurrency hoàn toàn \textbf{miễn phí} và chỉ đặt một giới hạn trần.
+
+\subsubsection{Giá trị phù hợp nhất với môi trường Free Tier}
+AWS Lambda Free Tier cung cấp:
+\begin{itemize}
+    \item 1.000.000 requests miễn phí mỗi tháng.
+    \item 400.000 GB-giây compute miễn phí mỗi tháng.
+    \item Tổng tài khoản mặc định được 1.000 concurrent executions (unreserved).
+\end{itemize}
+
+\textbf{Đề xuất lý thuyết cho đồ án:}
+Đối với đồ án Task Manager (lưu lượng rất thấp, chỉ phục vụ demo), giá trị lý tưởng để cấu hình là \textbf{Reserved Concurrency = 5} cho mỗi Lambda function (Tổng = 20 $\ll$ 1.000 hạn mức mặc định). Mức thiết lập này đảm bảo nằm trong Free Tier và vẫn còn dư concurrency cho các dịch vụ khác nếu cần.
+
+\textbf{Thực tế triển khai (Giới hạn tài khoản AWS cá nhân mới tạo):}
+Khi tiến hành cấu hình thực tế mức Reserved Concurrency = 5 trên AWS Console, nhóm đã gặp lỗi: \textit{"The unreserved account concurrency can't go below 100"}.
+
+\textbf{Nguyên nhân:} 
+\begin{itemize}
+    \item AWS quy định bắt buộc phải chừa lại ít nhất \textbf{100 concurrency} không được bảo lưu (unreserved) cho các hàm Lambda khác trong tài khoản sử dụng chung.
+    \item Tuy nhiên, đối với các \textbf{tài khoản AWS cá nhân mới tạo (New Free Tier Account)}, AWS thường áp dụng chính sách giới hạn an toàn để phòng chống gian lận (như đào tiền ảo hoặc bị hack). Do đó, hạn mức Account Concurrency mặc định ban đầu bị khóa ở mức rất thấp, chỉ là \textbf{10} (thay vì 1.000 như tài khoản lâu năm).
+    \item Do $10 < 100$, hệ thống AWS không cho phép thiết lập bất kỳ Reserved Concurrency nào trên tài khoản này.
+\end{itemize}
+
+\textbf{Kết luận và Hướng giải quyết:} 
+Do giới hạn an toàn mặc định của tài khoản AWS mới, nhóm không thể lưu cấu hình Reserved Concurrency trên hệ thống (trừ khi gửi yêu cầu \textit{Request quota increase} lên AWS Support và chờ xét duyệt). 
+
+Vì vậy, để đảm bảo ứng dụng có thể hoạt động phục vụ quá trình báo cáo đồ án, nhóm quyết định \textbf{giữ nguyên cấu hình mặc định (Use unreserved account concurrency)} cho toàn bộ 4 hàm Lambda. Tuy không thể áp dụng trên thực tế do kẹt hạn mức, nhóm đã phân tích và hiểu rõ hoàn toàn cơ chế chống bùng nổ chi phí này nếu được triển khai trên môi trường thật.
+
+\subsubsection{Ảnh hưởng nếu thiết lập quá thấp hoặc quá cao}
+\begin{itemize}
+    \item \textbf{Quá thấp (VD: 1):} Chỉ 1 request được xử lý tại một thời điểm. Nếu có 2 user cùng truy cập, user thứ 2 sẽ nhận lỗi \texttt{429 TooManyRequestsException}. Trải nghiệm người dùng rất tệ.
+    \item \textbf{Quá cao (VD: 500) hoặc không đặt:} Lambda có thể scale lên hàng trăm instances nếu bị tấn công DDoS $\rightarrow$ Tiêu tốn toàn bộ Free Tier trong vài phút $\rightarrow$ Phát sinh chi phí ngoài ý muốn.
+    \item \textbf{Vừa phải (5--10):} Cân bằng giữa trải nghiệm người dùng và bảo vệ chi phí. Đủ phục vụ demo và sử dụng thông thường, đồng thời ngăn chặn bùng nổ chi phí nếu bị tấn công.
+\end{itemize}
+
+\subsubsection{API Gateway Throttling}
+Ngoài Reserved Concurrency ở tầng Lambda, nhóm cũng cấu hình \textbf{Throttling} ở tầng API Gateway để tạo lớp bảo vệ kép:
+
+\begin{longtable}{|p{0.25\textwidth}|c|p{0.45\textwidth}|}
+\hline
+\textbf{Tham số} & \textbf{Giá trị} & \textbf{Mục đích} \\ \hline
+\endhead
+\textbf{Rate (req/s)} & 100 & Giới hạn tối đa 100 request mỗi giây \\ \hline
+\textbf{Burst} & 50 & Tối đa 50 request đồng thời tại 1 thời điểm \\ \hline
+\end{longtable}
+
+\textbf{Cơ chế bảo vệ 2 lớp (Lý thuyết):} Trong môi trường sản xuất không bị giới hạn quota, khi có lưu lượng đột biến, API Gateway chặn trước ở mức 100 req/s. Nếu vẫn có request lọt qua, Reserved Concurrency trên Lambda tiếp tục giới hạn ở mức 5 concurrent executions. Kết hợp cả hai giúp bảo vệ toàn diện. 
+
+Tuy nhiên do giới hạn thực tế của tài khoản, ứng dụng hiện tại phụ thuộc chính vào chốt chặn \textbf{API Gateway Throttling} và hệ thống cảnh báo chi phí \textbf{AWS Budget (\$0.01)} để đảm bảo an toàn.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{image/RC-1.png}
+    \caption{RC-1: Lỗi giới hạn Concurrency 100 trên tài khoản AWS cá nhân mới tạo}
+    \label{img:RC-1}
+\end{figure}
 
 \subsection{Sơ đồ Kiến trúc Tổng thể}
 \begin{figure}[H]
