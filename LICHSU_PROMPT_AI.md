@@ -3,11 +3,13 @@
 > **Môn:** CSC11006 — Nhập môn Điện toán đám mây
 > **Đồ án:** PROJECT2 — Xây dựng Ứng dụng Web Serverless với Kiến trúc bảo mật & Tối ưu chi phí
 > **Công cụ AI sử dụng:** Antigravity IDE (Gemini / Claude)
-> **Link git hub** https://github.com/nhaajtdajt/Cloud-Project-2
+> **Link git hub:** https://github.com/nhaajtdajt/Cloud-Project-2
+> **Thời gian sử dụng:** 25/05/2026 — 06/06/2026
 
 ---
 
 ## Mục lục
+Chú thích: Prompt 1 -> 7 là của người C (Nhật Đạt). Prompt 8 là của người A (Bình Dương).
 
 1. [Prompt #1: Đọc và phân tích đề bài](#prompt-1)
 2. [Prompt #2: Phân công công việc cho 3 người](#prompt-2)
@@ -16,6 +18,7 @@
 5. [Prompt #5: Viết 3 file báo cáo chi tiết (Người A, B, C)](#prompt-5)
 6. [Prompt #6: Vẽ sơ đồ so sánh NAT Gateway vs VPC Gateway Endpoint](#prompt-6)
 7. [Prompt #7: Vẽ sơ đồ kiến trúc tổng thể hệ thống](#prompt-7)
+8. [Prompt #8: Giải thích cách tắt Client Secret trong Cognito](#prompt-8)
 
 ---
 
@@ -280,13 +283,71 @@ Sơ đồ có:
 
 ---
 
+<a id="prompt-8"></a>
+## Prompt #8 — Giải thích cách tắt Client Secret trong Cognito.
+
+| Mục | Nội dung |
+|-----|---------|
+| **Ngày** | 28/05/2026 |
+| **Model** | Gemini 3.1 Pro (low) |
+
+### Câu Prompt:
+
+> *trong CONGVIEC_NGUOI_A.md ở dòng 69 (Line 69) có nhắc tới lúc tạo Cognito User Pool, đề cập đến "Không tạo client secret" nhưng sau khi tôi tạo xong "App client: TaskManager-WebClient "
+thì tôi nhận thấy mục "Client secret" (được hiển thị dạng '***' có thể hiện ra được ở mục "App client information". Vậy tôi có đang vi phạm quy tắc "Không tạo client secret" không ? Nếu có thì làm sao để tắt mục đó - vì khi tôi tìm trong phần config của App client thì không có bất kỳ nơi nào để tắt client secret.*
+
+### Kết quả AI cho ra:
+```markdonw
+Viewed Project-member-milestones.md:30-54
+
+Chào bạn, bạn đang rất cẩn thận và việc bạn thắc mắc điều này là hoàn toàn chính xác! 
+
+Nếu bạn thấy mục **"Client secret"** hiện ra (dù là đang bị che bằng các dấu `***`), điều đó có nghĩa là **bạn đã vô tình tạo ra App Client có kèm theo Client secret**, và điều này **đang vi phạm quy tắc** dành cho ứng dụng Frontend (Single Page Application / Public Client).
+
+### Tại sao ứng dụng Frontend lại "KHÔNG được có Client Secret"?
+App Client của chúng ta đang dùng cho code Frontend (HTML/JS) chạy trực tiếp trên trình duyệt của người dùng. Nếu bạn có Client Secret, bạn sẽ phải nhúng đoạn mã secret đó vào file `config.js` để có thể gọi được API của Cognito. 
+Bởi vì file `.js` tải trực tiếp xuống trình duyệt, bất kỳ ai nhấn F12 cũng có thể xem được mã secret này của bạn $\rightarrow$ Mất hoàn toàn tính bảo mật. (Client Secret chỉ dành cho các ứng dụng chạy trên Backend/Server kín).
+
+---
+
+### Cách khắc phục (Làm sao để tắt?)
+
+Đáng tiếc là cấu trúc của AWS Cognito hiện tại **KHÔNG CHO PHÉP tắt hoặc xóa Client Secret** một khi App Client đó đã được tạo ra. 
+
+**Cách duy nhất để khắc phục là Xóa App Client cũ và Tạo lại một App Client mới.** Bạn không cần phải xóa cả User Pool, chỉ cần làm các bước sau trong User Pool hiện tại:
+
+#### Bước 1: Xóa App Client bị lỗi
+1. Vào **Cognito** $\rightarrow$ Chọn **User Pool** của bạn (`TaskManager-UserPool`).
+2. Chuyển sang tab **App integration**.
+3. Cuộn xuống phần **App clients and analytics**, nhấn vào tên của app client cũ (`TaskManager-WebClient`).
+4. Nhấn nút **Delete** ở góc trên bên phải để xóa nó đi.
+
+#### Bước 2: Tạo lại App Client ĐÚNG cách (Không có secret)
+1. Quay lại tab **App integration**, ở phần **App clients and analytics** $\rightarrow$ nhấn **Create app client**.
+2. Ở mục **App type**, bắt buộc chọn **Public client** (hoặc *Single-page application* tuỳ giao diện AWS hiện tại).
+3. App client name: Đặt lại tên `TaskManager-WebClient`.
+4. **Vị trí quan trọng nhất:** Kéo xuống phần **Client secret**. Bạn phải chọn tuỳ chọn **"Don't generate a client secret"** (Không tạo bí mật máy khách).
+5. Kéo xuống mục **Auth Flows**: Đảm bảo bật `ALLOW_USER_SRP_AUTH` và `ALLOW_REFRESH_TOKEN_AUTH`.
+6. Nhấn **Create app client**.
+
+#### Bước 3: Cập nhật lại config
+Sau khi tạo xong, bạn sẽ có một **Client ID** hoàn toàn mới. Mục Client secret lúc này sẽ hiển thị là *"No client secret"*.
+Hãy copy cái Client ID mới này và dán lại vào file `config.js` của bạn nhé.
+
+Chúc bạn thiết lập thành công! Việc phát hiện ra lỗi này sớm ở Tuần 1 chứng tỏ bạn đang review cấu trúc rất kỹ càng đấy.
+```
+
+### Đánh giá:
+
+`Kết quả, hướng dẫn được trả ra khắc phục vấn đề tắt Client Secret ở  Cognito. Cũng như giải thích tốt tại sao Frontend không được có Client Secret nhằm đảm bảo tính bảo mật.`
 
 
+---
 ## Tổng kết sử dụng AI
 
 | Hạng mục | Thống kê |
 |----------|---------|
-| **Tổng số prompt quan trọng** | 7 |
+| **Tổng số prompt quan trọng** | 8 |
 | **Mục đích sử dụng chính** | Phân tích đề bài, phân công công việc, viết code, viết báo cáo, vẽ sơ đồ kiến trúc, giải thích khái niệm kỹ thuật |
 | **Các model AI đã dùng** | Claude Opus 4.6, Claude Sonnet 4.6, Gemini 3.1 Pro |
 | **Số file code AI tạo** | 11 files (6 frontend + 4 backend Lambda + 1 CSS) |
